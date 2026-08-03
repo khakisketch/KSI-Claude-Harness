@@ -13,7 +13,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 `Workflow({scriptPath: '~/.claude/workflows/audit-loop.js', args: {units:[{key,prompt,model?}], context, verifySeverities, maxRounds, analyzeModel, batchSize, critic}})`
 > **파일 부재 = 플러그인 머신에 workflow 미배치**(플러그인 번들은 workflows/를 안 나른다) → `bash scripts/sync-machine.sh --plugin`으로 `~/.claude/workflows/` 배치. 그동안은 §1–6 인터랙티브(조용한 강등 아님).
 - **루프 의미론(트리거·survivor·정지·degraded·폴백)의 SSOT = audit-loop.js 상단 LOOP CONTRACT 주석** — 여기서 재명세하지 않는다(산문↔코드 drift 차단). dial: verifySeverities·maxRounds·analyzeModel·batchSize(rate-limit cascade 예방 — §6 DEGRADED 경고와 연결)·critic(소규모 감사는 false로 생략)(기본값 SSOT=audit-loop.js LOOP CONTRACT — 여기 수치는 편의 표기).
-- **티어링(픽셀판):** 캡처·인벤토리=haiku(scout/Explore) · 시각 감사=`model:'sonnet'` · **발견성·역할게이팅·흐름단절 등 맥락추론 렌즈=`model:'opus'`**(해당 unit에 `model:'opus'`를 지정하는 것이 canonical 호출 — 미지정 unit은 analyzeModel 폴백) · verify/critic=reviewer(LOOP CONTRACT) · 종합=메인. 모델 배치 일반 규칙은 CLAUDE.md 참조. **(Sonnet 5세대 기준)** 맥락추론 렌즈의 opus 라우팅은 **미변경** — sonnet 기본화(비용↓)는 paired-run 스팟체크 후 결정(과거 '빈 보고서 첫인상' 회귀 선례상 신중. 재검토 TTL: 분기 1회 paired-run 재실측).
+- **티어링(픽셀판):** 캡처·인벤토리=haiku(Explore) · 시각 감사=`model:'sonnet'` · **발견성·역할게이팅·흐름단절 등 맥락추론 렌즈=`model:'opus'`**(해당 unit에 `model:'opus'`를 지정하는 것이 canonical 호출 — 미지정 unit은 analyzeModel 폴백) · verify/critic=reviewer(LOOP CONTRACT) · 종합=메인. 모델 배치 일반 규칙은 CLAUDE.md 참조. **(Sonnet 5세대 기준)** 맥락추론 렌즈의 opus 라우팅은 **미변경** — sonnet 기본화(비용↓)는 paired-run 스팟체크 후 결정(과거 '빈 보고서 첫인상' 회귀 선례상 신중. 재검토 TTL: 분기 1회 paired-run 재실측).
 - **context에 design-side spec을 반드시 넣는다** — UX목표 5축(페르소나·동선 step-budget·상태 인벤토리·마이크로카피 SSOT·접근성 예산 = CLAUDE.md UI 절 SSOT). 기준 없는 시각 감사는 '안 깨졌나'만 잰다.
 
 ## 절차

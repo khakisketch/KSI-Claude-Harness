@@ -13,7 +13,7 @@ ui-audit이 프론트 "픽셀"에 하는 일을 백엔드/일반 코드에 한�
 - 작은 substantive: 워커 1개 + 검증 1패스.
 - 중간: 모듈 N개 = 워커 N개, adversarial 1패스.
 - 큰 감사: fan-out + adversarial(새 finding 마를 때까지, maxRounds dial로 라운드 상한 — 기본값 SSOT=audit-loop.js LOOP CONTRACT, 여기 수치는 편의 표기) + 완성도 critic. **확장 옵션:** critic이 미탐색 단위를 반환하면 상한 내에서 다음 라운드 analyze fan-out으로 자동 편입(§5 재투입 루프) — 고정 분해로 안 본 표면이 남을 때.
-- 단일 파일·1~2줄 변경엔 이 스킬 금지 — 직접 또는 worker 1개(코드 수정에 scout/Haiku 금지).
+- 단일 파일·1~2줄 변경엔 이 스킬 금지 — 직접 또는 worker 1개(코드 수정을 haiku tier에 맡기지 않는다).
 
 ## 0.5 재사용 루프 골격 (매번 0에서 재조립 금지 — 의미를 못박는다)
 `pipeline(units, analyze, verify)`는 **고정 깊이 단발**(analyze 1패스 + verify 1패스)이다. 완성도가 필요한 큰 감사는 §5의 critic→verify→재투입 루프를 얹어 수렴시킨다.
@@ -24,7 +24,7 @@ ui-audit이 프론트 "픽셀"에 하는 일을 백엔드/일반 코드에 한�
 대상을 독립 단위로 나눈다(모듈/레포/레이어/관심사). 각 단위 = 한 워커의 몫.
 
 ## 2. 인벤토리 — Haiku tier
-`scout`(쓰기 필요 시) 또는 빌트인 **Explore**(read-only, 이미 Haiku)로 각 단위의 파일 인벤토리·grep 인덱싱·진입점을 빠르고 싸게 수집.
+**Explore**(read-only·Haiku)로 각 단위의 파일 인벤토리·grep 인덱싱·진입점을 빠르고 싸게 수집. **결론만 받는다** — 파일 덤프가 아니라 "무엇이 어디에 있나".
 
 ## 3. 분석 fan-out — Sonnet tier
 단위별 워커가 병렬 분석. **diverse-lens** — 각 렌즈를 한 줄씩(압축해 한 문단에 욱여넣으면 context 압박 시 렌즈가 silent drop된다):
@@ -61,7 +61,7 @@ severity로 정렬한 findings + 구체 권고. 반복 결함은 단위별 땜�
 - **제품 리스크 기록(fix 안 할 것·수용할 것):** 지금 고칠 게 아니라 **추적·수용** 대상인 보안/DB/어뷰징 finding은 goal이 아니라 risk로 — `ksi-goals.py --dir <proj> risk-add`(정확한 플래그는 `ksi-goals.py --help`가 SSOT). 나중에 고치면 그 finding을 goal로 register(→goals-run 자율소진), 지금 안 고치기로 하면 `risk-accept`(baseline — 근거 필수). goal의 completion 술어를 오염시키지 않게 risk는 분리 lifecycle(open→accepted/resolved→regressed). goal-status가 SessionStart에 미해소 risk를 복원.
 
 ## 원칙
-- **티어링(3-tier 워커 + 메인):** 탐색=Explore/scout(`'haiku'`) · 분석·구현=worker(`'sonnet'`) · verify·완성도 critic=**reviewer**(`'opus'`·xhigh·read-only) · 모순 tiebreak/고위험 최종=메인(미지정 inherit, 의도적으로만) · 판정·종합=메인(어느 모델이든 무관). 모델은 alias로 지정 — 풀 ID 하드코딩 금지.
+- **티어링(2-tier 워커 + 메인):** 탐색=Explore(`'haiku'`) · 분석·구현=worker(`'sonnet'`) · verify·완성도 critic=**reviewer**(`'opus'`·xhigh·read-only) · 모순 tiebreak/고위험 최종=메인(미지정 inherit, 의도적으로만) · 판정·종합=메인(어느 모델이든 무관). 모델은 alias로 지정 — 풀 ID 하드코딩 금지.
 - **adversarial 필수:** 검증 안 거친 발견은 채택하지 않는다(critical/high 기본 — 미만 severity는 정책적 skip 후 unverified 표기 채택).
 - **dial:** exhaustiveness는 "항상 최대"가 아니라 작업 크기에 비례해.
 - **하네스/프로세스 준수 감사 시:** 측정 창 = 해당 규칙·도구의 mtime 이후(그 이전 산출물에 신규 규칙 소급 위반 판정 금지).

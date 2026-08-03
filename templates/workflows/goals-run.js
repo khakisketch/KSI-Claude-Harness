@@ -80,7 +80,7 @@ const GATE_SCHEMA = {
 phase('Run')
 log(`goals-run: ${DIR} — 세션 예산 ${maxGoals} 목표. 종료=원장 actionable 0 또는 예산 도달(마라톤 방지).`)
 
-// 원장 상태를 기계판독으로 읽는 헬퍼(scout tier — 단순 CLI 실행+파싱).
+// 원장 상태를 기계판독으로 읽는 헬퍼(haiku tier — 단순 CLI 실행+파싱).
 const readStatus = () =>
   agent(`${DIR}의 goals 원장 상태를 읽어라. 정확히 이 명령을 Bash로 실행하고 그 JSON을 그대로 반환:\n\`${G} status --json\`\n출력 JSON을 스키마대로 반환하라(가공·추측 금지 — CLI 출력 그대로).`,
     { label: 'status', phase: 'Run', model: 'haiku', schema: STATUS_SCHEMA })
