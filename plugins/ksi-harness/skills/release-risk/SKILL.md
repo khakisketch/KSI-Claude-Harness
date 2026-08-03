@@ -1,12 +1,12 @@
 ---
 name: release-risk
 description: 배포·릴리즈·DB 마이그레이션·데이터 백필·인프라·CI/CD·결제/과금·롤백·관측·장애 등 '프로덕션 준비도·전달 리스크'를 점검한다. 추상적 아키텍처 순수성보다 구체적 실패 모드·blast radius·롤아웃 순서·롤백 계획을 본다.
-when_to_use: 배포·릴리즈·마이그레이션·백필·결제 경로 변경·인프라/CI 변경·롤백 계획 전, 또는 고객영향 롤아웃을 '되돌리기 어려운 작업'으로 1줄 확인할 때(의사결정 3레인의 대표자 결정 레인과 연결). 한국어 트리거 — 배포·운영·릴리즈·migration·infra·결제·rollback·장애·observability.
+when_to_use: 배포·릴리즈·마이그레이션·백필·결제 경로 변경·인프라/CI 변경·롤백 계획 전, 또는 고객영향 롤아웃을 '되돌리기 어려운 작업'으로 사용자에게 1줄 확인할 때. 한국어 트리거 — 배포·운영·릴리즈·migration·infra·결제·rollback·장애·observability.
 ---
 
 # Release Risk — 전달·운영 리스크 점검
 
-되돌리기 어려운 작업(배포·DB 마이그·자금 경로·비밀 변경)에 착수하기 전, **실패 모드와 blast radius**를 구체적으로 적고 verdict를 낸다. 대표자 결정 레인("되돌리기 어려운 실행은 대표자에게 1줄 확인")의 운영화 — 그 '1줄'을 이 렌즈가 근거 있게 채운다.
+되돌리기 어려운 작업(배포·DB 마이그·자금 경로·비밀 변경)에 착수하기 전, **실패 모드와 blast radius**를 구체적으로 적고 verdict를 낸다. "되돌리기 어려운 실행은 사용자 승인 사항"(CLAUDE.md)의 운영화 — 그 '1줄'을 이 렌즈가 근거 있게 채운다.
 
 ## 원칙
 - 전달 안전성 > 추상적 아키텍처 순수성.
@@ -36,7 +36,7 @@ when_to_use: 배포·릴리즈·마이그레이션·백필·결제 경로 변경
 5. 롤백 또는 완화책을 정의.
 6. `Approved` / `Needs changes` / `Blocked` 판정.
 
-**티어링:** 고위험(자금·마이그·배포)의 최종 verify는 reviewer tier(opus·xhigh·read-only)로, verify끼리 모순이면 메인급 tiebreak 1회. verify가 부분 실패하면 결과를 **DEGRADED로 표기하고 낙관 결론을 보류**(승인 금지). 큰 릴리즈 surface는 `/codebase-audit`(운영조건/fault-injection 렌즈)로 fan-out.
+**티어링:** 고위험(자금·마이그·배포)의 최종 verify는 reviewer tier(opus·xhigh·read-only)로, verify끼리 모순이면 메인 tiebreak 1회. verify가 부분 실패하면 결과를 **DEGRADED로 표기하고 낙관 결론을 보류**(승인 금지). 큰 릴리즈 surface는 `/codebase-audit`(운영조건/fault-injection 렌즈)로 fan-out.
 
 ## 출력
 ```md

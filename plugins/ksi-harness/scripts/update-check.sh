@@ -12,8 +12,6 @@
 #   ③ 미설치·경로부재·git/python 부재·오프라인·태그 없음·비-semver 전부 graceful silent.
 set -uo pipefail
 export PATH="$HOME/.local/bin:$PATH"
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 업데이트 알림 침묵
 
 # 모드 감지: CLAUDE_PLUGIN_ROOT 있으면 플러그인, 아니면 KSI_HARNESS_REPO(native).
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"

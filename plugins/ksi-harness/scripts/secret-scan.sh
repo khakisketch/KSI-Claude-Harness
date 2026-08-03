@@ -6,8 +6,6 @@
 # - 입력(JSON)은 stdin으로 받는다 — Write는 파일 내용 전체가 입력에 실려 argv(MAX_ARG_STRLEN 128KB)를 넘길 수 있다.
 # - 1h dedup: 같은 (파일+발견) 경고를 반복 주입하지 않는다(ruff 훅 sentinel 패턴 재사용).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 민감쓰기 넛지 침묵(0.8.3 · push 시크릿 유출 하드가드는 exfil-guard가 모드 무관 유지)
 
 # 프로그램은 -c 인자(약 4KB, 한도 내), 큰 입력은 stdin으로 흘려보낸다. 프로그램 내부에 작은따옴표(')를 쓰지 않는다(\x27로 대체).
 python3 -c '
@@ -40,8 +38,10 @@ if npath == os.path.normpath(os.path.join(home, ".claude", "settings.json")):
     try:
         with open(fp, encoding="utf-8") as f:
             cfg = json.load(f)
-        if "model" in cfg:
-            findings.append("settings.json에 model 키가 있습니다 — main-agnostic 위반(메인 하드코딩 금지). 개인 기본값이 필요하면 settings.local.json으로 옮기세요.")
+        # model 키 경고 철회 — /model 세션선택이 settings.json에 값을 persist하는 정상 런타임 동작이라
+        # 하드코딩 위반이 아니다(반복 재발은 이 메커니즘의 오진이었다). model은 런타임 소유라
+        # 하네스 위생 대상이 아니다. effort 경고는 유효하므로 유지.
+        # 주의: 이 파이썬은 python3 -c 홑따옴표 문자열로 전달된다 — 주석에도 아포스트로피 금지.
         eff = cfg.get("effortLevel")
         if eff is not None and eff not in ("high", "xhigh", "max"):
             findings.append("effortLevel=" + str(eff) + " — 코드작업 effort 하한은 high입니다(high/xhigh/max 권장).")

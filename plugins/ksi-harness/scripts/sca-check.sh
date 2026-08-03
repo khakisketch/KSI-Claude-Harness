@@ -10,8 +10,6 @@
 # dedup: 같은 파일+내용을 1시간 내 재검사하지 않는다(SCA는 느림 — 매 저장마다 PyPI 조회 방지).
 # 3-게이트 doctrine: ruff/pytest가 못 잡는 차원(코드 변경 없이도 overnight CVE) — 전역 CLAUDE.md SCA 게이트의 기계화.
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 SCA 넛지 침묵(0.8.3)
 export PATH="$HOME/.local/bin:$PATH"
 
 input="$(cat)"

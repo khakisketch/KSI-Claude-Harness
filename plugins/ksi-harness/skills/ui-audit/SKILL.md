@@ -1,7 +1,7 @@
 ---
 name: ui-audit
 description: UI를 코드가 아니라 렌더링된 픽셀로 검증한다. 앱을 띄워 핵심 페이지를 여러 뷰포트(desktop·mobile 390px)로 캡처하고, 스크린샷을 다중 에이전트가 눈으로 감사한 뒤 adversarial하게 검증해 우선순위 findings를 낸다. "타입·e2e는 통과하는데 화면이 깨진다"는 클래스의 결함을 잡는다.
-when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 보고할 때, 프론트 대량 fan-out 작업 후, 또는 주기적 시각 회귀 점검. 백엔드 검증(ruff/pytest)의 프론트 대응물. **단, 1~2줄 스타일·단일 컴포넌트 변경엔 이 스킬(전량 fan-out) 금지** — CLAUDE.md 작업방식의 렌더 확인(desktop+mobile 스크린샷 1회)으로 충분(codebase-audit §0 하한과 대칭).
+when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 보고할 때, 프론트 대량 fan-out 작업 후, 또는 주기적 시각 회귀 점검. 백엔드 검증(ruff/pytest)의 프론트 대응물. **단, 1~2줄 스타일·단일 컴포넌트 변경엔 이 스킬(전량 fan-out) 금지** — CLAUDE.md UI 절의 렌더 확인(desktop+mobile 스크린샷 1회)으로 충분(codebase-audit §0 하한과 대칭).
 ---
 
 # UI Audit — 픽셀을 본다
@@ -14,7 +14,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 > **파일 부재 = 플러그인 머신에 workflow 미배치**(플러그인 번들은 workflows/를 안 나른다) → `bash scripts/sync-machine.sh --plugin`으로 `~/.claude/workflows/` 배치. 그동안은 §1–6 인터랙티브(조용한 강등 아님).
 - **루프 의미론(트리거·survivor·정지·degraded·폴백)의 SSOT = audit-loop.js 상단 LOOP CONTRACT 주석** — 여기서 재명세하지 않는다(산문↔코드 drift 차단). dial: verifySeverities·maxRounds·analyzeModel·batchSize(rate-limit cascade 예방 — §6 DEGRADED 경고와 연결)·critic(소규모 감사는 false로 생략)(기본값 SSOT=audit-loop.js LOOP CONTRACT — 여기 수치는 편의 표기).
 - **티어링(픽셀판):** 캡처·인벤토리=haiku(scout/Explore) · 시각 감사=`model:'sonnet'` · **발견성·역할게이팅·흐름단절 등 맥락추론 렌즈=`model:'opus'`**(해당 unit에 `model:'opus'`를 지정하는 것이 canonical 호출 — 미지정 unit은 analyzeModel 폴백) · verify/critic=reviewer(LOOP CONTRACT) · 종합=메인. 모델 배치 일반 규칙은 CLAUDE.md 참조. **(Sonnet 5세대 기준)** 맥락추론 렌즈의 opus 라우팅은 **미변경** — sonnet 기본화(비용↓)는 paired-run 스팟체크 후 결정(과거 '빈 보고서 첫인상' 회귀 선례상 신중. 재검토 TTL: 분기 1회 paired-run 재실측).
-- **context에 design-side spec을 반드시 넣는다** — UX목표 5축(페르소나·동선 step-budget·상태 인벤토리·마이크로카피 SSOT·접근성 예산 = CLAUDE.md 작업방식 SSOT). 기준 없는 시각 감사는 '안 깨졌나'만 잰다.
+- **context에 design-side spec을 반드시 넣는다** — UX목표 5축(페르소나·동선 step-budget·상태 인벤토리·마이크로카피 SSOT·접근성 예산 = CLAUDE.md UI 절 SSOT). 기준 없는 시각 감사는 '안 깨졌나'만 잰다.
 
 ## 절차
 
@@ -28,7 +28,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 2. **캡처 — 실행 위치 라우팅** (캡처만 CPU-heavy — 판독 fan-out(§3)은 API 에이전트라 로컬 CPU 무관. 경합 박스에선 "더 병렬"이 아니라 "밖으로 빼거나(CI) 줄 세우기(락)"):
    - **preflight(필수):** `bash ~/.claude/scripts/load-guard.sh check` — RED(exit 2)면 CI 경로 우선. 로컬이 불가피하면(CI 미채택 레포 등) **막지 말고 저강도로 진행**(capture.mjs가 자동 감속: self-nice 10·동시성 1)하되 지연·부분실패 가능성을 사용자에게 1줄 보고. YELLOW는 경고 후 진행. (임계값·락 대기 노브 SSOT=스크립트 헤더)
    - **local(기본):** `/run`·`/verify`로 앱 기동 → 일괄 캡처는 `node ~/.claude/scripts/capture.mjs --pages <pages>`(픽셀-중립 효율 러너: reduced-motion·애니메이션 고정, 고신뢰 트래커만 차단, 부하 적응 동시성, self-nice. **폰트/이미지 차단 등 픽셀을 바꾸는 최적화는 금지** — 감사 입력 오염) · 동선·인터랙션 캡처만 playwright-mcp. 캡처 명령은 `load-guard.sh run -- <cmd>`로 감싼다(flock 직렬화 — 동시 세션의 Chromium 중첩 기동 방지. **병렬은 캡처가 아니라 판독·verify에서**). 기동 불가면 사용자에게 실행 방법을 1줄로 묻는다.
-   - **CI(load RED·멀티프로젝트 동시 감사·정례 회귀):** `~/.claude/templates/visual-qa.yml`을 repo `.github/workflows/`에, `~/.claude/scripts/capture.mjs`를 repo `scripts/visual-qa-capture.mjs`로 복사 채택(local과 같은 러너로 수렴 — repo 반영·push=대표자 결정 레인) → 러너가 캡처 후 아티팩트 업로드 → `gh run download -n visual-qa-shots`로 받아 **§3부터는 평소처럼 로컬 하네스가 수행**(adversarial verify가 같은 픽셀을 다시 보는 루프 무손상). 러너=프로젝트별 독립·병렬 by design — **멀티프로젝트 병렬 시각 감사의 canonical 경로.**
+   - **CI(load RED·멀티프로젝트 동시 감사·정례 회귀):** `~/.claude/templates/visual-qa.yml`을 repo `.github/workflows/`에, `~/.claude/scripts/capture.mjs`를 repo `scripts/visual-qa-capture.mjs`로 복사 채택(local과 같은 러너로 수렴 — repo 반영·push은 사용자 승인 사항) → 러너가 캡처 후 아티팩트 업로드 → `gh run download -n visual-qa-shots`로 받아 **§3부터는 평소처럼 로컬 하네스가 수행**(adversarial verify가 같은 픽셀을 다시 보는 루프 무손상). 러너=프로젝트별 독립·병렬 by design — **멀티프로젝트 병렬 시각 감사의 canonical 경로.**
    - Agent `isolation:"remote"`는 이 경로의 기본이 아니다 — 환경에 따라 remote 스폰이 같은 호스트로 **조용히 강등**될 수 있다(가용성 gated — 첫 응답 "ok"만으론 가용 오판). 판별 probe(hostname·loadavg·파일시스템 비교)로 진짜 격리가 실측 확인된 환경에서만 고려하고, 그 전까지 원격 캡처=CI.
 
 3. **시각 감사 (fan-out)** — 페이지(또는 뷰포트)별로 에이전트를 띄워 **스크린샷을 Read로 보게** 하고 결함을 분류 보고:
@@ -50,7 +50,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 
 5. **구조적 처방** — 여러 페이지에 반복되는 결함은 페이지별 땜질이 아니라 **공유 프리미티브로 한 번에**: `PageHeader` / `ResponsiveTable`(모바일 reflow) / `EmptyState` / 라벨 맵(SSOT). 일관성을 노력이 아니라 구조로 강제.
 
-6. **우선순위 findings + (선택) 회귀 baseline** — severity로 정렬해 보고. **무손실/DEGRADED(codebase-audit §6과 대칭): critical/high 시각 결함은 종합 요약이 묻지 못한다 · verify/critic이 부분 실패하면 audit-loop이 `degraded:true`를 반환 — 그 플래그가 서면 낙관 결론('시각적으로 멀쩡')을 보류한다(green≠작동의 UI판).** 수정 후 재캡처로 회귀 확인하고, 핵심 화면은 baseline 스크린샷을 저장해 다음 diff의 기준으로 남긴다. **user-visible 변경이고 디자인 방향이 대표자 관심사였으면, baseline과 수정 후 스크린샷을 나란히 before→after Artifact 보드로 발행**(매체 SSOT=CLAUDE.md 작업방식 — **스크린샷은 base64 data URI로 실제 embed, 경로 텍스트만 적은 보드는 결함**) — baseline이 이미 저장돼 있어 한계비용 최저. 단 1~2줄 CSS·저위험 변경엔 render Read로 충분(전량 fan-out 금지선과 대칭). 무손실 규칙은 보드에서도 유지 — 보드가 critical/high 결함을 예쁘게 묻으면 안 된다.
+6. **우선순위 findings + (선택) 회귀 baseline** — severity로 정렬해 보고. **무손실/DEGRADED(codebase-audit §6과 대칭): critical/high 시각 결함은 종합 요약이 묻지 못한다 · verify/critic이 부분 실패하면 audit-loop이 `degraded:true`를 반환 — 그 플래그가 서면 낙관 결론('시각적으로 멀쩡')을 보류한다(green≠작동의 UI판).** 수정 후 재캡처로 회귀 확인하고, 핵심 화면은 baseline 스크린샷을 저장해 다음 diff의 기준으로 남긴다. **user-visible 변경이고 디자인 방향이 사용자 판단 사항이었으면, baseline과 수정 후 스크린샷을 나란히 before→after Artifact 보드로 발행**(매체 SSOT=CLAUDE.md UI 절 — **스크린샷은 base64 data URI로 실제 embed, 경로 텍스트만 적은 보드는 결함**) — baseline이 이미 저장돼 있어 한계비용 최저. 단 1~2줄 CSS·저위험 변경엔 render Read로 충분(전량 fan-out 금지선과 대칭). 무손실 규칙은 보드에서도 유지 — 보드가 critical/high 결함을 예쁘게 묻으면 안 된다.
 
 ## 원칙
 - **모바일을 빼지 않는다.** 결함의 대부분은 390px에서 처음 보인다.

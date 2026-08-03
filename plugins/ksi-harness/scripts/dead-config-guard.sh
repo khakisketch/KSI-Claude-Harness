@@ -4,8 +4,6 @@
 # 로컬 모델 매핑 잔존. 경고만(자동수정 없음 — 레포의 update-check 훅과 동형, 우리가 안 쓰던 SessionStart 이벤트).
 # 근거: 메타감사가 어느 프로젝트의 .claude/settings.json을 'Claude를 죽은 ollama:11434로 강제 + bypass'로 적발(active footgun).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 넛지 침묵(0.8.3)
 
 input="$(cat)"
 cwd="$(printf '%s' "$input" | python3 -c '

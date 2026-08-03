@@ -4,8 +4,6 @@
 # 목적: 여러 프로젝트를 오갈 때 '어디까지 했나·뭐가 가짜완료로 재오픈됐나'를 진입 즉시 복원.
 # (0.8.4 slim: docs/에 PLAN/TODO/AUDIT md 있으면 /goals init 권장하던 경로 B 제거 — 흔한 파일명 약신호 홍보라 저가치. 경로 A만 유지.)
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 넛지 침묵(0.8.3)
 
 input="$(cat)"
 cwd="$(printf '%s' "$input" | python3 -c '

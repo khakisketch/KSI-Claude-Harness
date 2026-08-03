@@ -39,14 +39,24 @@ expect_block() {
   out="$(run_hook "$1")"
   case "$out" in *'"decision"'*'"block"'*) pass "$1 — $2" ;; *) failt "$1 — $2 (출력: ${out:0:60})" ;; esac
 }
+# Stop 훅 완료게이트는 비차단 알림(systemMessage)이다 — 발화하되 완료를 막지 않는다.
+# "block 안 함"까지 함께 단언해 차단 회귀를 잡는다.
+expect_notice() {
+  out="$(run_hook "$1")"
+  case "$out" in
+    *'"decision"'*) failt "$1 — $2 (완료를 차단함: ${out:0:60})" ;;
+    *'"systemMessage"'*) pass "$1 — $2" ;;
+    *) failt "$1 — $2 (미발화: ${out:0:60})" ;;
+  esac
+}
 expect_silent() {
   out="$(run_hook "$1")"
   [ -z "$out" ] && pass "$1 — $2" || failt "$1 — $2 (발화함)"
 }
 
 echo "== Stop 훅: 발화 케이스 (미커밋 변경) =="
-rec "$TW/components/D.tsx" > "$TP";  expect_block  ui-render-check.sh      "미커밋 .tsx → block"
-rec "$TW/tests/test_x.py" > "$TP";   expect_block  backend-verify-check.sh "미커밋 tests/*.py → block"
+rec "$TW/components/D.tsx" > "$TP";  expect_notice ui-render-check.sh      "미커밋 .tsx → 비차단 알림"
+rec "$TW/tests/test_x.py" > "$TP";   expect_notice backend-verify-check.sh "미커밋 tests/*.py → 비차단 알림"
 
 echo "== Stop 훅: 침묵 케이스 =="
 rec "$TW/util.py" > "$TP";           expect_silent backend-verify-check.sh "순수 util.py → silent(경로 필터)"
@@ -150,26 +160,37 @@ python3 "$KG" --dir "$TW/gs-ok" register --id G1 --title work >/dev/null 2>&1
 python3 "$KG" --dir "$TW/gs-ok" start --id G1 >/dev/null 2>&1
 case "$(gs "$TW/gs-ok")" in *additionalContext*) pass "goal-status.sh — 미완 goal → 넛지" ;; *) failt "goal-status.sh — 미완 goal인데 침묵" ;; esac
 
-echo "== escape(0.8.3): KSI_HOOKS 스위치 =="
+echo "== 강도 스위치 제거(0.9.13): KSI_HOOKS 는 더 이상 아무 것도 바꾸지 않는다 =="
+# 실사용 0회로 확인돼 제거했다(bashrc·settings·프로젝트·히스토리 어디에도 설정된 적 없음).
+# 차단하는 훅이 사라진 뒤로는 "관문 해제"라는 용도 자체가 없어졌고, 남은 건 짧은 알림뿐이라 끌 이유가 없다.
+# 회귀 가드: 옛 값이 환경에 남아 있어도 동작이 갈리지 않아야 한다(조용한 침묵 = 최악의 실패 모드).
 payid() { printf '{"transcript_path":"%s","cwd":"%s","session_id":"%s"}' "$TPW" "$TW" "$1"; }
-# 미커밋 화면 변경 하나 만들기(앞 섹션에서 전부 커밋됨) — 고유 세션키로 dedup 간섭 회피
 printf 'export default function D(){return <span className="c">changed</span>}\n' > "$T/components/D.tsx"
 rec "$TW/components/D.tsx" > "$TP"
-# 세션키에 $$ 포함 — sentinel이 실행 간 누적돼 dedup으로 거짓침묵(strict 미발화)나는 것 방지(hermetic).
-case "$(payid "es-strict-$$" | KSI_HOOKS=strict bash "$HOOKS/ui-render-check.sh")" in *'"block"'*) pass "escape ui-render — strict → block(대조)" ;; *) failt "escape ui-render — strict인데 미발화" ;; esac
-out="$(payid "es-off-$$" | KSI_HOOKS=off bash "$HOOKS/ui-render-check.sh")"; [ -z "$out" ] && pass "escape ui-render — off → silent" || failt "escape ui-render — off인데 발화"
-out="$(payid "es-warn-$$" | KSI_HOOKS=warn bash "$HOOKS/ui-render-check.sh")"; [ -z "$out" ] && pass "escape ui-render — warn → non-block" || failt "escape ui-render — warn인데 block"
-out="$(printf '{"prompt":"새 기능 만들어줘 대시보드 화면","session_id":"eg"}' | KSI_HOOKS=off bash "$HOOKS/gate-nudge.sh")"; [ -z "$out" ] && pass "escape gate-nudge — off → silent" || failt "escape gate-nudge — off인데 발화"
+# 세션키에 $$ 포함 — sentinel이 실행 간 누적돼 dedup으로 거짓침묵나는 것 방지(hermetic).
+for m in "" strict warn off; do
+  out="$(payid "sw-${m:-unset}-$$" | env ${m:+KSI_HOOKS=$m} bash "$HOOKS/ui-render-check.sh")"
+  case "$out" in
+    *'"decision"'*) failt "스위치제거 ui-render(KSI_HOOKS=${m:-unset}) — 완료를 차단함" ;;
+    *'"systemMessage"'*) pass "스위치제거 ui-render(KSI_HOOKS=${m:-unset}) — 값과 무관하게 비차단 알림" ;;
+    *) failt "스위치제거 ui-render(KSI_HOOKS=${m:-unset}) — 침묵(옛 스위치가 아직 살아있다)" ;;
+  esac
+done
+out="$(printf '{"prompt":"새 기능 만들어줘 대시보드 화면","session_id":"eg-off-'"$$"'"}' | KSI_HOOKS=off bash "$HOOKS/gate-nudge.sh")"
+case "$out" in *additionalContext*) pass "스위치제거 gate-nudge — off 값이어도 발화" ;; *) failt "스위치제거 gate-nudge — off에서 여전히 침묵" ;; esac
+[ -e "$HOOKS/ksi-mode.sh" ] && failt "ksi-mode.sh 가 남아있다(스위치 잔재)" || pass "ksi-mode.sh 제거됨"
 
-echo "== escape(0.8.3): 안전벨트는 모드 무관 유지 =="
+echo "== 안전벨트: 되돌리기-불가는 환경과 무관하게 항상 차단 =="
 pdg() { printf '{"tool_name":"Bash","tool_input":{"command":%s}}' "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$1")"; }
-pdg "rm -rf /" | KSI_HOOKS=off bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — rm -rf / → off에서도 block(안전벨트)" || failt "rm -rf / off에서 통과(안전벨트 해제!)"
-pdg "git push --force origin main" | KSI_HOOKS=off bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — push --force → off에서도 block" || failt "push --force off에서 통과"
+pdg "rm -rf /" | KSI_HOOKS=off bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — rm -rf / → block(안전벨트)" || failt "rm -rf / 통과(안전벨트 해제!)"
+pdg "git push --force origin main" | KSI_HOOKS=off bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — push --force → block" || failt "push --force 통과"
 pdg "git push -fu origin feature" | KSI_HOOKS=off bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — push -fu(스택 플래그) → block(자가감사 봉합)" || failt "push -fu 우회(안전벨트 구멍!)"
 pdg "git push -uf origin feature" | bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — push -uf → block" || failt "push -uf 우회"
 pdg "git push --force-with-lease origin main" | bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 0 ] && pass "pre-destructive — push --force-with-lease 단독 → allow(안전 변형)" || failt "force-with-lease 오차단"
-pdg "git reset --hard" | KSI_HOOKS=strict bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — reset --hard strict → block" || failt "reset --hard strict 미차단"
-pdg "git reset --hard" | KSI_HOOKS=warn bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 0 ] && pass "pre-destructive — reset --hard warn → allow(경고만)" || failt "reset --hard warn인데 차단"
+# reset --hard·clean -f: 예전엔 warn 에서 경고로 낮췄으나 스위치 제거와 함께 차단으로 통일.
+# 미커밋 작업은 git 에도 checkpoint/rewind 에도 없어 사실상 되돌리기-불가다.
+pdg "git reset --hard" | bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — reset --hard → block(미커밋 소실)" || failt "reset --hard 미차단"
+pdg "git reset --hard" | KSI_HOOKS=warn bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — reset --hard → warn 값이어도 block" || failt "reset --hard 가 옛 스위치로 우회됨"
 
 echo "== SCA diff-aware(0.8.3) =="
 scaclean; mkdir -p "$T/scad"; printf '[tool.ruff]\nline-length = 100\n' > "$T/scad/pyproject.toml"
@@ -217,6 +238,35 @@ echo "== goal-status slim(0.8.4): Path B(docs 넛지) 제거 확인 =="
 gsb() { printf '{"cwd":"%s"}' "$1" | CLAUDE_PLUGIN_ROOT="$PR" bash "$HOOKS/goal-status.sh"; }
 mkdir -p "$T/gsb/docs"; printf '# roadmap\n' > "$T/gsb/docs/ROADMAP.md"; printf '# todo\n' > "$T/gsb/docs/TODO.md"
 out="$(gsb "$TW/gsb")"; [ -z "$out" ] && pass "goal-status — docs/에 ROADMAP·TODO 있어도 .ksi 없으면 silent(Path B 제거)" || failt "goal-status — Path B 여전히 발화"
+
+echo "== 훅이 python3 에 실제로 넘기는 코드가 컴파일되는가 (조용한 죽음 방지) =="
+# 실측 사고(2026-08-03): secret-scan.sh 주석에 아포스트로피가 들어가 `python3 -c '...'` 셸 문자열이
+# 조기 종료됐다. bash -n 은 통과하고, stderr 는 2>/dev/null 에 먹히고, 훅은 exit 0 으로 조용히 침묵 —
+# 하드코딩 시크릿·파괴적 DDL 경고가 몇 주간 죽어 있었는데 아무 신호도 없었다.
+# 여기서는 python3 를 shim 으로 가로채 '셸이 실제로 넘긴 코드'를 받아 py_compile 한다.
+PYSHIM="$(mktemp -d)"; PYDUMP="$(mktemp -d)"
+cat > "$PYSHIM/python3" <<'SHIM'
+#!/usr/bin/env bash
+if [ "${1:-}" = "-c" ]; then printf '%s' "$2" > "$PYDUMP_DIR/$$-$RANDOM.py"; exit 0; fi
+exec "$REAL_PYTHON3" "$@"
+SHIM
+chmod +x "$PYSHIM/python3"
+REALPY="$(command -v python3)"
+for hf in "$HOOKS"/*.sh; do
+  grep -q "python3 -c '" "$hf" 2>/dev/null || continue
+  rm -rf "${PYDUMP:?}"/*;
+  printf '{"tool_name":"Write","tool_input":{"file_path":"/tmp/zz.py"},"prompt":"x","cwd":"/tmp","session_id":"pyshim","transcript_path":"/tmp/none"}' \
+    | PYDUMP_DIR="$PYDUMP" REAL_PYTHON3="$REALPY" PATH="$PYSHIM:$PATH" bash "$hf" >/dev/null 2>&1
+  bad=0; cnt=0
+  for pf in "$PYDUMP"/*.py; do
+    [ -e "$pf" ] || continue; cnt=$((cnt+1))
+    "$REALPY" -m py_compile "$pf" 2>/dev/null || bad=$((bad+1))
+  done
+  # cnt=0 은 조기 exit(설계상 skip)이라 정상 — 도달한 페이로드만 판정한다.
+  if [ "$bad" -eq 0 ]; then pass "py-payload — $(basename "$hf") → 컴파일 가능(${cnt}개)"
+  else failt "py-payload — $(basename "$hf") → 셸 인용 깨짐으로 python 코드 손상(${bad}/${cnt})"; fi
+done
+rm -rf "$PYSHIM" "$PYDUMP"
 
 echo
 [ $fail -eq 0 ] && echo "✅ 전체 통과" || echo "❌ 실패 있음"

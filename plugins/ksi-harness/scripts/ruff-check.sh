@@ -4,8 +4,6 @@
 # 3-훅 게이트 대칭: 백엔드=정적 lint(이 훅, 자동 주입)+동작 넛지(backend-verify, Stop) / 프론트=시각+동선 넛지(ui-render, Stop).
 # --no-cache: 훅의 CWD가 쓰기 불가일 수 있어(예: Windows 'Program Files') 캐시 생성 실패→lint 미검증이 되는 것을 방지.
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 lint 넛지 침묵(0.8.3)
 
 # 훅이 login shell의 full PATH를 상속 못할 수 있으므로 ruff 설치 경로를 보강
 export PATH="$HOME/.local/bin:$PATH"

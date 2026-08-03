@@ -7,8 +7,6 @@
 #       넛지할 수 있는데 미배선이었음(audit-loop.js 같은 워크플로 경로는 verify가 이미 코드에 baked-in되지만,
 #       인터랙티브 Agent 스폰 경로는 넛지가 전무했다).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 넛지 침묵(0.8.3)
 
 input="$(cat)"
 out="$(HOOK_INPUT="$input" python3 - <<'PY' 2>/dev/null

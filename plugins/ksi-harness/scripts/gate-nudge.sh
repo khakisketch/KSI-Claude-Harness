@@ -11,8 +11,6 @@
 #   패턴과 정렬). (d) 안전한 어휘만 확장(scaffold, 새/신규+시스템·플로우·플랫폼·모듈) — "명사+추가/넣/붙이
 #   인접" 등 넓은 확장은 소작업(예: "API에 파라미터 추가해줘")에서 높은 FP로 실측 기각.
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 넛지 침묵(0.8.3)
 
 input="$(cat)"
 out="$(GATE_INPUT="$input" python3 - <<'PY' 2>/dev/null
@@ -32,7 +30,7 @@ sid = d.get("session_id", "") or "nosession"
 # 슬래시 커맨드·짧은 프롬프트·이미 게이트를 언급한 프롬프트엔 침묵
 if prompt.startswith("/") or len(prompt) < 8:
     sys.exit(0)
-if re.search(r"deep-interview|brainstorm|착수\s?게이트", prompt):
+if re.search(r"deep-interview|착수\s?게이트", prompt):
     sys.exit(0)
 # 보수적 착수 어휘 — 스코프 명사(기능·프로젝트·화면…)와의 결합을 요구한다.
 # 단독 build-동사('구현해줘'·'만들어줘')는 함수 구현·테스트 작성 같은 소작업에서 오탐이라 매칭하지 않는다
@@ -70,10 +68,8 @@ try:
 except Exception:
     pass
 msg = (
-    "착수 게이트 넛지(세션 1회, 훅 자동): 새 기능·새 프로젝트·대형 리팩터로 보이는 요청 — 코드에 손대기 전 "
-    "목표/범위/비범위/수용기준을 3~5줄로 먼저 적어라. **스코프가 이미 명확하고 소규모(단일 화면/엔드포인트, 되돌리기 쉬움)면 "
-    "인라인 메모로 갈음하고 바로 진행**, 모호하거나 크거나 되돌리기 어려우면 사용자 확인. "
-    "WHAT(의도·스코프) 모호=/deep-interview, HOW(접근) 모호=/brainstorm로 승격 (라우팅 SSOT=CLAUDE.md 착수 게이트)."
+    "(훅, 세션 1회) 새 기능·대형 리팩터로 보입니다 — 목표/범위/비범위/수용기준을 3~5줄로 먼저 적으면 재작업이 줍니다. "
+    "이미 범위가 합의됐거나 소규모면 그대로 진행하세요. 해석이 갈리면 /deep-interview."
 )
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": msg}}, ensure_ascii=False))
 PY

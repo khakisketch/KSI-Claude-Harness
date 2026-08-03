@@ -15,12 +15,9 @@
 #   개행 분리가 이를 별도 세그먼트로 오차단할 수 있음(저빈도) — 오차단 의심되면 규칙을 좁혀라. $()·eval·
 #   base64 등으로 인코딩된 명령은 여전히 미탐지(heuristic 한계, 완전 파싱기가 아님).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-# ⚠ 여기서 blanket off-exit 하지 않는다 — rm 루트/홈·push --force·DROP DB 하드가드는 모드 무관 항상 유지.
-# 모드는 python으로 넘겨 '되돌리기-가능(reset --hard/clean -f)'만 warn/off에서 경고로 낮춘다(0.8.3).
 
 input="$(cat)"
-GUARD_INPUT="$input" KSI_MODE="${KSI_MODE:-strict}" python3 - <<'PY'
+GUARD_INPUT="$input" python3 - <<'PY'
 import json, os, posixpath, re, shlex, sys
 
 try:
@@ -38,16 +35,10 @@ def block(reason):
     sys.exit(2)
 
 
-MODE = os.environ.get("KSI_MODE", "strict")
-
-
 def soft_block(reason):
-    # 되돌리기-가능(로컬 미커밋/미추적 손실) 계열 — strict는 차단, warn/off는 경고만 하고 자율 실행 허용(escape, 0.8.3).
-    # rm 루트·push --force·DROP DB 같은 되돌리기-불가/외부영향은 이걸 쓰지 않고 항상 block().
-    if MODE == "strict":
-        block(reason)
-    print(f"pre-destructive-guard 경고(KSI_HOOKS={MODE}): {reason}", file=sys.stderr)
-    sys.exit(0)
+    # 로컬 미커밋/미추적 손실 계열(reset --hard·clean -f). 예전엔 KSI_HOOKS 스위치로 경고까지 낮출 수 있었으나
+    # 스위치를 없애며 차단으로 통일했다 — 미커밋 작업은 git 에도 rewind 에도 없어서 사실상 되돌리기-불가다.
+    block(reason)
 
 HOME = os.path.expanduser("~")
 SEG_SPLIT = re.compile(r"(?<!\\)(?:[;&|]+|[\r\n]+)")
@@ -157,23 +148,23 @@ def check_one(seg, depth):
         # -fu가 새던 갭(2026-07-18 자가감사 confirmed) 봉합: rm/clean과 동일하게 단일-대시 플래그를 문자단위로 전개.
         pshort = "".join(a.lstrip("-") for a in pargs if a.startswith("-") and not a.startswith("--"))
         if ("f" in pshort) or any(a == "--force" for a in pargs):
-            block("git push --force(-f·-fu 등 f 포함) — --force-with-lease를 단독으로 쓰거나 사용자가 직접 실행(대표자 결정 레인)")
+            block("git push --force(-f·-fu 등 f 포함) — --force-with-lease를 단독으로 쓰거나 사용자가 직접 실행(사용자 승인 사항)")
 
     if prog == "git" and "reset" in args:
         rargs = args[args.index("reset"):]
         if "--hard" in rargs:
-            soft_block("git reset --hard — 미커밋 변경 소실(로컬·되돌리기 가능). strict면 차단, KSI_HOOKS=warn/off면 경고만")
+            soft_block("git reset --hard — 미커밋 변경이 사라진다. git 에도 rewind 에도 없어 되살릴 수 없다. 정말 버릴 거면 사용자가 직접 실행")
 
     if prog == "git" and "clean" in args:
         cargs = args[args.index("clean"):]
         cshort = "".join(a.lstrip("-") for a in cargs if a.startswith("-") and not a.startswith("--"))
         if ("f" in cshort) or ("--force" in cargs):
-            soft_block("git clean -f — 미추적 파일 소실(로컬·되돌리기 가능). strict면 차단, KSI_HOOKS=warn/off면 경고만")
+            soft_block("git clean -f — 미추적 파일이 사라진다. 되살릴 수 없다. 정말 버릴 거면 사용자가 직접 실행")
 
     if prog in ("psql", "mysql", "mariadb") or (prog == "supabase" and "db" in args):
         DROP_RE = re.compile(r"(?i)\bdrop\s+(database|schema)\b")
         if DROP_RE.search(seg):
-            block("인터랙티브 DROP DATABASE/SCHEMA — 마이그레이션 경로로만(대표자 결정 레인)")
+            block("인터랙티브 DROP DATABASE/SCHEMA — 마이그레이션 경로로만(사용자 승인 사항)")
         # 명령줄 문자열만 보면 `psql -f drop.sql`·`psql < drop.sql`·heredoc의 DROP은 안 보인다 —
         # 실행될 SQL 파일 내용에도 같은 정규식을 적용한다. 읽지 못하는 파일은 차단 대신 사각을 가시화(은폐 금지).
         # heredoc은 cmd 전역이 아니라 *실제 heredoc body*만 검사한다 — 전역 매칭은 무관 세그먼트
@@ -183,7 +174,7 @@ def check_one(seg, depth):
                 delim = re.escape(hm.group(2))
                 body_m = re.search(r"<<-?\s*['\"]?" + delim + r"['\"]?[^\n]*\n(.*?)\n[ \t]*" + delim + r"\b", cmd, re.S)
                 if body_m and DROP_RE.search(body_m.group(1)):
-                    block("psql/mysql heredoc 경유 DROP DATABASE/SCHEMA — 마이그레이션 경로로만(대표자 결정 레인)")
+                    block("psql/mysql heredoc 경유 DROP DATABASE/SCHEMA — 마이그레이션 경로로만(사용자 승인 사항)")
         sql_files = []
         for j, a in enumerate(args):
             a2 = a.strip("'\"")
@@ -211,7 +202,7 @@ def check_one(seg, depth):
                 if os.path.isfile(exp) and os.path.getsize(exp) <= 5 * 1024 * 1024:
                     with open(exp, errors="ignore") as fh:
                         if DROP_RE.search(fh.read()):
-                            block(f"SQL 파일 경유 DROP DATABASE/SCHEMA: {f} — 마이그레이션 경로로만(대표자 결정 레인)")
+                            block(f"SQL 파일 경유 DROP DATABASE/SCHEMA: {f} — 마이그레이션 경로로만(사용자 승인 사항)")
                 else:
                     print(f"pre-destructive-guard: SQL 입력 {f} 은(는) 검사하지 못함(부재/과대) — DROP 여부 직접 확인", file=sys.stderr)
             except Exception:

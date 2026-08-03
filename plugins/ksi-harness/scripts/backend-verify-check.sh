@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stop hook: 이 세션에서 백엔드 상태전이/테스트 코드(.py 중 tests·alembic·migrations·services·main)를
-# '직접' 수정했는데 '완료'하려 할 때, 'green ≠ 작동'을 1회 넛지한다(시각 검증 게이트의 백엔드 대응물).
+# '직접' 수정했는데 '완료'하려 할 때, 'green ≠ 작동'을 1회 알린다(시각 검증 게이트의 백엔드 대응물).
+# **비차단**: systemMessage로 사용자에게 보이기만 하고 완료를 막지 않는다(ui-render-check.sh와 동형).
 # - 프론트 ui-render-check.sh의 짝: 프론트=시각 확인 넛지, 백엔드=동작 검증 넛지.
 #   ruff 훅은 .py 저장마다 '정적 lint'만 자동 주입한다 — 픽스처가 종단상태를 직접 주입해 실제 flow를
 #   우회하는 가짜 green, SQLite-테스트/PG-프로덕션 dialect 분기는 ruff로 안 잡힌다. 그 공백을 완료 전 넛지.
@@ -12,12 +13,10 @@
 #      순수 util·스키마·설정만 고친 세션엔 침묵(과발화 방지 — .py는 .tsx보다 변경 빈도가 훨씬 높다).
 # - 루프 방지: stop_hook_active면 통과. transcript 없음/파싱 오류/비-git면 graceful 통과(세션 안 깸).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 이 완료 게이트 침묵(0.8.3)
 
 input="$(cat)"
 
-KSI_MODE="${KSI_MODE:-strict}" python3 - "$input" <<'PY' 2>/dev/null || exit 0
+python3 - "$input" <<'PY' 2>/dev/null || exit 0
 import sys, json, os
 
 try:
@@ -36,7 +35,6 @@ if not tp or not os.path.exists(tp):
 EXTS = (".py",)
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 changed = set()
-mode = os.environ.get("KSI_MODE", "strict")
 
 # 효율(0.8.3): 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 — 미커밋 .py가 하나도 없으면
 # transcript 전체 파싱을 통째로 건너뛴다(관련 미커밋 0인 흔한 Stop에서 O(transcript) 비용 제거). git 불가면 종전대로 진행(graceful).
@@ -180,10 +178,6 @@ n = len(interesting)
 if n == 0:
     sys.exit(0)
 
-# escape(0.8.3): warn/off는 완료를 차단하지 않는다(off는 bash에서 이미 종료 · warn은 여기서 non-block allow).
-if mode != "strict":
-    sys.exit(0)
-
 # dedup (하네스 자가감사, CONFIRMED high): 동일 파일셋 반복 재넛지 차단 — ui-render-check와 동형.
 # 키=정렬 fileset 해시(셋 변경 시 재넛지) + 세션당 하드캡 3회. 상세 근거는 ui-render-check.sh 주석 참조.
 import hashlib, glob as _glob, tempfile
@@ -204,18 +198,11 @@ try:
 except Exception:
     pass
 
-reason = (
-    "이 세션에서 백엔드 상태전이/테스트 파일 " + str(n) + "개를 수정했습니다(tests·migrations·services 등). "
-    "\"완료\" 전에 'green ≠ 작동'을 점검하세요(ruff lint 통과는 동작 검증이 아닙니다): "
-    "① 캐시 클린 후 재실행으로 green을 재현했나(예: pytest -p no:cacheprovider 또는 .pytest_cache·.mypy_cache 제거 후) — "
-    "incremental 캐시가 중간 상태로 가짜 green을 낼 수 있습니다. "
-    "② 핵심 사용자 여정을 미리 최종화된 픽스처가 아니라 실제 상태 전이(생성→…→finalize→산출물)로 적어도 한 번 통과시켰나 — "
-    "시드가 status=finalized·점수를 직접 주입하면 깨진 finalize도 green이 됩니다. "
-    "③ SQLite로 테스트하고 프로덕션이 다른 DB(PG 등)면 dialect 분기(INTERVAL·now()·JSON 등)가 프로덕션에서도 도나. "
-    "이미 위를 확인했다면 그 사실을 보고하고 그대로 완료하세요. 깊은 점검은 /codebase-audit의 '핵심 여정 실행성' 렌즈로. "
-    "ruff/타입 통과는 동작 정확성을 보장하지 않습니다."
+msg = (
+    "상태전이/테스트 파일 " + str(n) + "개 수정됨 — green이 실제 동작인지 한 번 볼 시점입니다"
+    "(캐시 클린 재현 · 픽스처가 종단상태를 직접 주입하지 않았나 · 테스트 DB와 운영 DB dialect 차이)."
 )
-print(json.dumps({"decision": "block", "reason": reason}))
+print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
 sys.exit(0)
 PY
 exit 0

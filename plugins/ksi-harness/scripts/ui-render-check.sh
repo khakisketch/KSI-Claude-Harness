@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Stop hook: 이 세션에서 프론트엔드 화면 파일(.tsx/.jsx/.vue/.svelte/.css/.scss — 실제 EXTS는 코드가 SSOT)을 '직접' 수정했는데
-# '완료'하려 할 때, 렌더를 실제로 봤는지 1회 넛지한다(시각 검증 게이트의 프론트 대응물).
+# '완료'하려 할 때, 렌더를 봤는지 1회 알린다(시각 검증 게이트의 프론트 대응물).
+# **비차단**: systemMessage로 사용자에게 보이기만 하고 완료를 막지 않는다 — 강제는 준수율을 올리는 대신
+#   흐름을 끊고 보일러플레이트를 재주입해 실제 작업 품질을 깎았다(목표는 준수가 아니라 개발 결과물).
 # - 3-훅 게이트 대칭: 백엔드=정적 lint(ruff, 자동 주입)+동작 넛지(backend-verify, Stop) / 프론트=시각+동선 넛지(이 훅, Stop).
 # - 핵심: 막는 조건 = '이 세션 transcript의 Edit/Write/MultiEdit' ∩ 'git 미커밋 프론트 변경'.
 #   ① transcript: 메인 루프 직접 편집 + 이 세션의 서브에이전트/workflow 편집(확장).
@@ -18,12 +20,10 @@
 #   요약으로 이어진 세션에서 이전 세션의 tsx 편집까지 잡혀 매 턴 오발한다(거짓양성).
 # - 루프 방지: stop_hook_active면 통과. transcript 없음/파싱 오류면 graceful 통과(세션 안 깸).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 이 완료 게이트 침묵(0.8.3)
 
 input="$(cat)"
 
-KSI_MODE="${KSI_MODE:-strict}" python3 - "$input" <<'PY' 2>/dev/null || exit 0
+python3 - "$input" <<'PY' 2>/dev/null || exit 0
 import sys, json, os, re
 
 try:
@@ -42,7 +42,6 @@ if not tp or not os.path.exists(tp):
 EXTS = (".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss")
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 changed = set()
-mode = os.environ.get("KSI_MODE", "strict")
 
 # 효율(0.8.3): 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 실행 — 미커밋 EXTS 파일이 하나도 없으면
 # transcript 전체 파싱을 통째로 건너뛴다(관련 미커밋 0인 흔한 Stop에서 O(transcript) 비용 제거). git 불가면 종전대로 진행(graceful).
@@ -175,13 +174,6 @@ n = len(changed)
 if n == 0:
     sys.exit(0)
 
-# escape(0.8.3): warn/off는 완료를 차단하지 않는다. off는 bash에서 이미 종료됐고, warn은 여기서 non-block allow
-# (Stop 훅은 '비차단 리마인더' 채널이 없어 warn=allow로 처리 — 사용자가 게이트를 명시적으로 낮춘 것).
-# (자동 diff-성격 필터는 검토 후 제외 — 라인/워드 diff로는 '순수 색 변경'과 'margin 8px→16px 같은 레이아웃 값 변경'을
-#  안전하게 구분할 수 없어 false-green 위험. 사소 변경 세션은 KSI_HOOKS=warn/off로 사용자가 명시적으로 낮추는 게 안전.)
-if mode != "strict":
-    sys.exit(0)
-
 # dedup (하네스 자가감사, CONFIRMED high): stop_hook_active는 같은 Stop 사이클 재진입만 막아
 # 마라톤 세션에서 동일 파일셋에 같은 보일러플레이트가 최대 106회 재주입됐다(실측). 키는 세션 1회가 아니라
 # '정렬된 fileset 해시' — 파일셋이 바뀌면(새 화면 편집) 정당하게 재넛지하고, 불변이면 침묵한다.
@@ -205,19 +197,11 @@ try:
 except Exception:
     pass
 
-reason = (
-    "이 세션에서 프론트엔드 화면 파일 " + str(n) + "개를 수정했습니다. "
-    "\"완료\" 전에 **실제 렌더를 적절한 수단으로 확인**하세요 — 기본은 /run·/verify로 앱을 띄워 "
-    "desktop + mobile(390px) 스크린샷을 Read(시각 축은 컴포넌트 단위 렌더 확인도 유효하나, 동선·도달성 축은 실행 앱 필요). "
-    "① 시각: 오버플로·한글 텍스트 세로쪼개짐(word-break:keep-all)·빈/희박 상태·터치타겟<44px. "
-    "② 동선·사용성: 핵심 산출물까지 도달하나(죽은 메뉴/리다이렉트 없나)·빈/에러 상태 탈출구·"
-    "상태 라벨이 영어 raw/코드값이 아니라 사람 말인가. "
-    "빈/희박/아주 긴 한글 이름 데이터와 각 역할 콜드스타트(첫 화면)로 보세요 — 풍부한 mock 한 장은 빈 상태 깨짐을 숨깁니다. "
-    "전 페이지·역할별 깊은 점검은 /ui-audit. "
-    "이미 양쪽 뷰포트 렌더를 눈으로 확인했다면 그 사실을 보고하고 그대로 완료하세요. "
-    "타입·e2e 통과는 시각적·사용성 멀쩡함을 보장하지 않습니다."
+msg = (
+    "화면 파일 " + str(n) + "개 수정됨 — 렌더를 아직 안 봤다면 확인해 볼 시점입니다"
+    "(레이아웃 변경이면 390·768·1440, 모달·팝오버는 연 상태로, 빈 DB로 한 번). 전 페이지면 /ui-audit."
 )
-print(json.dumps({"decision": "block", "reason": reason}))
+print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
 sys.exit(0)
 PY
 exit 0

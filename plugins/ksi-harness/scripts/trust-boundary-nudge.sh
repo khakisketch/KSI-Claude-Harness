@@ -4,8 +4,6 @@
 # 이쪽은 outbound 실행 직전이 아니라 inbound 콘텐츠 유입 직후 개입 지점).
 # 비차단 — additionalContext 1줄만 주입, 판단은 여전히 모델·사용자 몫(gate-nudge.sh와 동형).
 set -uo pipefail
-. "$(dirname "$0")/ksi-mode.sh" 2>/dev/null || KSI_MODE=strict
-[ "${KSI_MODE:-strict}" = off ] && exit 0   # escape: off면 넛지 침묵(0.8.3)
 
 input="$(cat)"
 out="$(TB_INPUT="$input" python3 - <<'PY' 2>/dev/null
