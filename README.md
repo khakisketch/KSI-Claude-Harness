@@ -46,8 +46,8 @@ cp templates/CLAUDE.md.example ~/.claude/CLAUDE.md   # 스택 섹션은 팀에 �
 |---|---|
 | Claude가 `rm -rf /`·`git push --force`·`DROP DATABASE`를 실행하려 함 | **자동 차단** (어떤 모드에서도) |
 | 시크릿(.env·API 키)이 담긴 채 `git push` 하려 함 | **push 차단** |
-| 화면 코드(.tsx/.css)를 고치고 "완료"하려 함 | "실제 렌더를 확인했나요?" 관문 — 확인 보고 후 완료 |
-| 테스트·서비스 코드(.py)를 고치고 "완료"하려 함 | "테스트 초록불이 실제 작동 맞나요?" 관문 |
+| 화면 코드(.tsx/.css)를 고치고 "완료"하려 함 | "실제 렌더를 확인했나요?" 알림 한 줄 (차단은 아님) |
+| 테스트·서비스 코드(.py)를 고치고 "완료"하려 함 | "테스트 초록불이 실제 작동 맞나요?" 알림 한 줄 (차단은 아님) |
 | `.py` 파일을 저장함 | ruff 린트 자동 실행, 문제 있으면 피드백 |
 | 의존성 파일(package.json·requirements)을 바꿈 | 알려진 취약점(CVE) 자동 검사 |
 | 새 세션을 시작함 | 지난 세션의 미완료 작업·프로젝트 상태를 자동 복원 |
@@ -129,12 +129,12 @@ flowchart TB
     D --> DEL["🧠 부르면 오는 것"]
     D --> AUT["⚙️ 자동으로 오는 것"]
 
-    DEL --> SK["스킬 6<br/>인터뷰 · 브레인스톰<br/>코드감사 · 화면감사<br/>작업장부 · 배포점검"]
+    DEL --> SK["스킬 7<br/>인터뷰 · 디버그 · 리뷰<br/>코드감사 · 화면감사<br/>작업장부 · 배포점검"]
     DEL --> AG["에이전트 3<br/>Explore 탐색<br/>worker 구현<br/>reviewer 검증"]
 
     AUT --> BA["🛑 위험 명령 차단"]
     AUT --> ED["저장할 때마다<br/>린트 · 시크릿 · 취약점"]
-    AUT --> ST["완료할 때<br/>진짜 되는지 관문"]
+    AUT --> ST["완료할 때<br/>진짜 되는지 알림"]
 ```
 
 핵심 철학 세 줄:
@@ -167,7 +167,7 @@ flowchart TB
 <details>
 <summary><b>팀 배포 — 프로젝트 단위 자동활성화</b></summary>
 
-프로젝트의 `.claude/settings.json`에 `templates/project-settings.example.json` 내용을 병합하고 git 체크인(repo 좌표는 `KhakiSkech/ksi-claude-harness`). 팀원이 프로젝트를 신뢰(trust)하면 자동 등록·활성화됩니다. private repo라 팀원은 GitHub collaborator 권한이 필요합니다.
+프로젝트의 `.claude/settings.json`에 `templates/project-settings.example.json` 내용을 병합하고 git 체크인(repo 좌표는 `KhakiSkech/ksi-claude-harness`). 팀원이 프로젝트를 신뢰(trust)하면 자동 등록·활성화됩니다. 이 repo는 public이라 팀원에게 별도 GitHub collaborator 권한이 필요 없습니다.
 
 권장 사용자 설정: `templates/user-settings.example.json`에서 필요한 키를 `~/.claude/settings.json`에 병합(`_comment` 키는 제거). `model` 키는 일부러 없음 — 세션에서 `/model`로 선택(main-agnostic).
 
@@ -239,7 +239,7 @@ scripts/test-hooks.sh ~/.claude/hooks # ★ 실제로 돌아가는 훅(live) 검
 
 `~/.claude/workflows/`(개인) 또는 프로젝트 `.claude/workflows/`에 복사해 씁니다. args 상세는 각 파일 상단 주석.
 
-> ⚠️ **플러그인 설치 머신은 이 워크플로가 자동으로 따라오지 않습니다** — Claude Code 플러그인 번들은 `skills/agents/hooks`만 자동설치하고 saved workflow(.js)·`ksi-goals.py`는 나르지 않습니다(공식 미지원). 감사 스킬(`/codebase-audit`·`/ui-audit`·`/goals`)이 이 워크플로를 `~/.claude/workflows/` 경로로 호출하므로, **플러그인 설치 후 `bash scripts/sync-machine.sh --plugin`을 한 번 실행**해 `templates/workflows/*.js`·스크립트(`ksi-goals.py`·`load-guard.sh`·`capture.mjs`)·`visual-qa.yml`을 `~/.claude/`에 배치하세요. 미배치 시 감사 스킬은 인터랙티브 fallback(§1–6 수동 진행)으로 동작합니다. 배치 여부는 `bash scripts/doctor.sh`가 점검합니다.
+> ⚠️ **플러그인 설치 머신은 이 워크플로가 자동으로 따라오지 않습니다** — Claude Code 플러그인 번들은 `skills/agents/hooks`만 자동설치하고 saved workflow(.js)·`ksi-goals.py`는 나르지 않습니다(공식 미지원). 감사 스킬(`/codebase-audit`·`/ui-audit`·`/goals`)이 이 워크플로를 `~/.claude/workflows/` 경로로 호출하므로, **플러그인 설치 후 `bash scripts/sync-machine.sh --plugin`을 한 번 실행**해 `templates/workflows/*.js`·스크립트(`ksi-goals.py`·`load-guard.sh`·`capture.mjs`·`journey.mjs`)·템플릿(`visual-qa.yml`·`domain-invariants.example.md`)을 `~/.claude/`에 배치하세요. 미배치 시 감사 스킬은 인터랙티브 fallback(§1–6 수동 진행)으로 동작합니다. 배치 여부는 `bash scripts/doctor.sh`가 점검합니다.
 
 | 워크플로 | 역할 |
 |---|---|

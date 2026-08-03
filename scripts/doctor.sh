@@ -58,11 +58,12 @@ else
     "플러그인 머신: bash scripts/sync-machine.sh --plugin  (workflows/*.js·ksi-goals.py를 ~/.claude로 배치)"
 fi
 if [ -f "$HOME/.claude/scripts/load-guard.sh" ] && [ -f "$HOME/.claude/scripts/capture.mjs" ] \
-   && [ -f "$HOME/.claude/templates/visual-qa.yml" ]; then
-  printf '  ✓ %-9s %s\n' scripts "~/.claude/{scripts,templates} 배치됨 (load-guard·capture·visual-qa — ui-audit §2 캡처 라우팅)"
+   && [ -f "$HOME/.claude/scripts/journey.mjs" ] && [ -f "$HOME/.claude/templates/visual-qa.yml" ] \
+   && [ -f "$HOME/.claude/templates/domain-invariants.example.md" ]; then
+  printf '  ✓ %-9s %s\n' scripts "~/.claude/{scripts,templates} 배치됨 (load-guard·capture·journey·visual-qa·domain-invariants — ui-audit §2/§3-B 라우팅)"
 else
   printf '  ⚠ %-9s %s\n      → %s\n' scripts \
-    "load-guard.sh/capture.mjs/visual-qa.yml 미배치 — ui-audit §2 preflight·캡처 라우팅 미동작(구버전 배치 상태)" \
+    "load-guard.sh/capture.mjs/journey.mjs/visual-qa.yml/domain-invariants.example.md 미배치 — ui-audit §2/§3-B 라우팅 미동작(구버전 배치 상태)" \
     "bash scripts/sync-machine.sh --plugin  (스크립트·워크플로·템플릿 재배치)"
 fi
 echo

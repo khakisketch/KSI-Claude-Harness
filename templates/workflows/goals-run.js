@@ -156,7 +156,7 @@ while (processed < maxGoals) {
   processed++
   log(`▶ [${next.id}] ${next.title} (attempt 세션내 ${attemptsById[next.id]}·누적 ${totalAttempts}/${maxAttemptsPerGoal})`)
 
-  // 작업 — worker tier(sonnet high). start → 실제 구현 → attempt --evidence.
+  // 작업 — worker tier(sonnet). start → 실제 구현 → attempt --evidence.
   const work = await agent(`${CTX}
 
 ## goals-run 작업 — 프로젝트 ${DIR}, 목표 [${next.id}] "${next.title}"
@@ -186,7 +186,7 @@ while (processed < maxGoals) {
     continue
   }
 
-  // evidence-gate — reviewer(opus xhigh read-only)가 criteria 대비 증거를 adversarial 검증.
+  // evidence-gate — reviewer(opus read-only)가 criteria 대비 증거를 adversarial 검증.
   const gate = await agent(`${CTX}
 
 ## goals-run evidence-gate — 목표 [${next.id}] "${next.title}"

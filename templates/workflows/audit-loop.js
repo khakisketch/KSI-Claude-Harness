@@ -24,7 +24,7 @@ export const meta = {
 // context: 모든 에이전트 프롬프트 앞에 붙는 공통 맥락(제품·페르소나·경로·design-side spec). 강력 권장.
 // analyzeModel='sonnet'  (alias만 — 풀 ID 금지) · analyzeEffort='high'(기본 — 세션 xhigh 상속 차단, P1' 2축 배치)
 // reviewerAgent='reviewer' (기본) — verify·critic을 reviewer 서브에이전트(opus·xhigh·read-only)로 라우팅: frontmatter가
-//   effort·read-only를 고정해 비-ultracode 세션에서도 xhigh로 검증. false면 model 기반(verifyModel/criticModel)으로 폴백.
+//   effort·read-only를 세션과 무관하게 고정. verify는 정밀도 과제라 high가 기본이고, 재현율이 필요한 critic만 호출부에서 xhigh로 올린다. false면 model 기반(verifyModel/criticModel)으로 폴백.
 // verifyModel='opus' | criticModel='opus' — reviewerAgent=false일 때만 쓰는 폴백 모델.
 // maxRounds — critic 재투입 포함 상한: 기본 2, 천장 4(스킬 문서의 '상한 2'는 기본값 서술). verifySeverities=['critical'](기본) — verify 트리거(dial). 위험 표면 high는 자동 추가.
 // critic=true — false면 critic 생략(작은 감사).
@@ -44,7 +44,7 @@ const verifyModel = A.verifyModel || 'opus'
 const criticModel = A.criticModel || 'opus'
 const maxRounds = Math.max(1, Math.min(4, A.maxRounds || 2))
 // verify 트리거(0.9.16): 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
-// 근거(실측): reviewer(opus·xhigh)가 서브에이전트 세션 1,634+로 단일 최대 소비처였고, 그 대부분이
+// 근거(실측): reviewer(opus·xhigh)가 서브에이전트 세션의 단일 최대 소비처였고, 그 대부분이
 // '일반 high' verify였다. 일반 high는 메인(opus·xhigh, full context)이 직접 판정하는 편이 싸고 정확하다.
 // 위험 표면(auth·권한·자금경로·상태전이·마이그레이션·시크릿)의 high는 틀리면 비싸므로 계속 반증한다.
 // A.verifySeverities를 명시하면 그 값이 우선(override 경로 무손상) — 예전 동작은 ['critical','high'].

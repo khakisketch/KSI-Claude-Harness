@@ -6,17 +6,9 @@ when_to_use: 배포·릴리즈·마이그레이션·백필·결제 경로 변경
 
 # Release Risk — 전달·운영 리스크 점검
 
-되돌리기 어려운 작업(배포·DB 마이그·자금 경로·비밀 변경)에 착수하기 전, **실패 모드와 blast radius**를 구체적으로 적고 verdict를 낸다. "되돌리기 어려운 실행은 사용자 승인 사항"(CLAUDE.md)의 운영화 — 그 '1줄'을 이 렌즈가 근거 있게 채운다.
-
-## 원칙
-- 전달 안전성 > 추상적 아키텍처 순수성.
-- 구체적 실패 모드·blast radius·롤아웃 순서·롤백 계획을 우선.
-- 로컬 개발 리스크와 프로덕션 리스크를 **구분**한다.
-- 증거 부족이면 승인은 조건부 또는 차단 — '돌아간다'만으로 통과시키지 않는다(green≠작동).
-
 ## 체크리스트 (해당하는 것만 — 단순 변경엔 과한 점검도 비용)
-- 스코프·non-goals가 명확한가
-- 하위/상위 호환(backward/forward) — 구 클라이언트·구 스키마와 공존 구간을 견디나
+- 스코프·non-goals가 명확한가, 로컬 개발 리스크와 프로덕션 리스크를 구분했나
+- 하위/상위 호환 — 구 클라이언트·구 스키마와 공존 구간을 견디나
 - 마이그레이션 **배포 순서**가 안전한가(expand→migrate→contract, 코드/스키마 선후)
 - 롤백 계획이 존재하고 **현실적**인가(데이터 손실 없이 되돌리나)
 - 데이터 백필·정리가 필요한가
@@ -26,17 +18,17 @@ when_to_use: 배포·릴리즈·마이그레이션·백필·결제 경로 변경
 - 과금/고객 영향이 이해됐나(자금 경로면 멱등·환불≤수금 불변식 점검 — 프로젝트 `## 도메인 불변식`과 대조)
 - 기존 통합·어댑터가 영향받나
 - 테스트가 **임계 실패 경로**를 커버하나(happy-path 말고 타임아웃·부분실패·rate-limit)
-- **SCA**: 의존성 변경 동반이면 pip-audit/npm audit high+ 미해결 없나(sca-check 훅이 자동 발화 — 미설치면 미검증으로 표기)
+- **SCA**: 의존성 변경 동반이면 pip-audit/npm audit high+ 미해결 없나(sca-check 훅 자동 발화 — 미설치면 미검증으로 표기)
 
 ## 워크플로
 1. 릴리즈 단위와 영향 시스템을 식별.
 2. 데이터 변경·의존성·롤아웃 순서를 식별.
-3. 실패 모드와 blast radius를 식별(외부의존·상태기계면 운영조건/fault-injection 렌즈와 동일 — 정적 코드 아닌 런타임 실패).
+3. 실패 모드와 blast radius를 식별(외부의존·상태기계면 운영조건/fault-injection 렌즈와 동일).
 4. 릴리즈 전/후 검증을 정의.
 5. 롤백 또는 완화책을 정의.
-6. `Approved` / `Needs changes` / `Blocked` 판정.
+6. `Approved` / `Needs changes` / `Blocked` 판정 — 증거 부족이면 조건부 또는 Blocked(green≠작동).
 
-**티어링:** 고위험(자금·마이그·배포)의 최종 verify는 reviewer tier(opus·xhigh·read-only)로, verify끼리 모순이면 메인 tiebreak 1회. verify가 부분 실패하면 결과를 **DEGRADED로 표기하고 낙관 결론을 보류**(승인 금지). 큰 릴리즈 surface는 `/codebase-audit`(운영조건/fault-injection 렌즈)로 fan-out.
+**티어링:** 고위험(자금·마이그·배포)의 최종 verify는 reviewer tier(opus·xhigh·read-only)로, verify끼리 모순이면 메인 tiebreak 1회. verify가 부분 실패하면 DEGRADED로 표기하고 낙관 결론 보류(승인 금지). 큰 릴리즈 surface는 `/codebase-audit`(운영조건/fault-injection 렌즈)로 fan-out.
 
 ## 출력
 ```md
