@@ -7,4 +7,14 @@ disallowedTools: Agent, Artifact, ExitPlanMode, Edit, Write, NotebookEdit
 
 하네스 자가감사 수정: 특정 버전부터 빌트인 Explore가 항상 Haiku가 아니라 메인 대화 모델을 상속(API에선 Opus 상한)하도록 바뀌었다. 이 커스텀 정의는 그 변경 전 동작(Explore=Haiku, 저비용 탐색)을 명시적으로 복원한다 — description·tools 구성은 빌트인과 동일하게 유지하고 model만 haiku로 고정.
 
-알려진 트레이드오프: 빌트인 Explore/Plan은 CLAUDE.md와 세션 git status 로딩을 건너뛰어 빠르고 저렴하다("공식 문서: 이 스킵은 built-in 전용이고 이를 바꿀 frontmatter 필드가 없다"). 이 커스텀 override가 빌트인을 완전히 대체하면서도 같은 스킵 동작을 유지하는지는 문서로 확정되지 않음 — 유지되면 그대로 이득, 유지 안 되면 매 호출이 CLAUDE.md를 로드해 토큰비용이 약간 늘 수 있음(그래도 Haiku 단가라 Opus 상속보다는 여전히 훨씬 쌈). 이상 동작 발견 시 이 파일의 tools 구성부터 의심할 것.
+확정된 트레이드오프(2026-08-04 공식 문서 확인): **이 커스텀 override는 CLAUDE.md와 git status를 로드한다.**
+문서 원문 — "Explore and Plan are the only subagents that omit CLAUDE.md and git status. There is no frontmatter
+field or per-agent setting to change which agents skip them." 즉 스킵은 *빌트인* Explore/Plan 전용이고,
+사용자 정의 Explore는 다른 커스텀 서브에이전트와 똑같이 둘 다 싣는다.
+→ 우리는 **CLAUDE.md 로딩 비용을 감수하고 haiku 단가를 택한 것**이다. 빌트인은 v2.1.198부터 메인 모델을
+상속하고(Claude API에서는 Opus 상한) 그게 훨씬 비싸므로, CLAUDE.md가 지금처럼 짧게 유지되는 한 이 교환은 이득이다.
+CLAUDE.md가 다시 비대해지면 이 계산이 뒤집힐 수 있으니 그때 재검토할 것.
+
+프롬프트에 규칙을 다시 적어야 하는 경우: 문서상 "The main conversation reads Explore results with full CLAUDE.md
+context, so most rules don't need to reach the subagent itself" — 다만 `vendor/ 무시` 같은 탐색 범위 규칙은
+위임 프롬프트에 직접 쓴다.
