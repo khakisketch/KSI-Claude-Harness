@@ -27,6 +27,14 @@ case "$file" in
   *) exit 0 ;;
 esac
 
+# 버릴 임시 스크립트는 lint 하지 않는다(0.9.16). 실측: 세션 스크래치패드의 일회용 .py를 66회 lint했고,
+# 그 결과가 모델 context에 주입되지만 파일 자체는 세션과 함께 사라지므로 전량 낭비였다.
+# 범위는 **스크래치패드만** — /tmp 전체를 막았더니 훅 회귀 스위트(임시 디렉토리에 프로젝트 파일을 만들어
+# 검사한다)까지 침묵해 정상 파일의 lint가 죽었다. 실측된 낭비 66건도 전부 scratchpad 경로였다.
+case "$file" in
+  */scratchpad/*) exit 0 ;;
+esac
+
 if ! command -v ruff >/dev/null 2>&1; then
   # ruff 미설치 → 지금까지 무음 스킵이었다(lint가 통째로 미검증인데 은폐). sca-check.sh의 '미검증 가시화' 패턴처럼
   # 1줄 통지하되, 세션당 1회만 — 기존 config-error dedup(L43-51류) sentinel 패턴을 세션 키로 재사용.

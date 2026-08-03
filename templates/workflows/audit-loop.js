@@ -6,7 +6,9 @@ export const meta = {
 
 // ==== LOOP CONTRACT (SSOT — codebase-audit/ui-audit 스킬 산문은 의미를 재명세하지 말고 여기를 참조) ====
 //  survivor   = verdict ≠ 'refuted' 인 finding (verify 실패=error 는 confirmed 아님 → degraded 버킷).
-//  verify 트리거 = verifySeverities(기본 critical/high). 미트리거 = 'unverified'(정책 skip, 실패 아님).
+//  verify 트리거 = verifySeverities(기본 ['critical']) + severity=high 이면서 위험 표면(auth·권한·자금경로·
+//                 상태전이·마이그레이션·시크릿)인 finding. 미트리거 = 'unverified'(정책 skip, 실패 아님).
+//                 일반 high는 메인이 직접 판정한다 — reviewer 호출량 축소(0.9.16).
 //  verify 실패(throw/rate-limit) = 'error' → degraded[]에 격리, counts에 confirmed로 세지 않음, return.degraded=true.
 //  analyze 실패 = 해당 unit은 coveredUnits에서 제외하고 units_analyze_failed[]에 격리(위장 커버리지 금지) → return.degraded=true.
 //  critic 호출 실패(throw) = critic_failed=true(완성도 재점검 미수행) → return.degraded=true.
@@ -24,7 +26,7 @@ export const meta = {
 // reviewerAgent='reviewer' (기본) — verify·critic을 reviewer 서브에이전트(opus·xhigh·read-only)로 라우팅: frontmatter가
 //   effort·read-only를 고정해 비-ultracode 세션에서도 xhigh로 검증. false면 model 기반(verifyModel/criticModel)으로 폴백.
 // verifyModel='opus' | criticModel='opus' — reviewerAgent=false일 때만 쓰는 폴백 모델.
-// maxRounds — critic 재투입 포함 상한: 기본 2, 천장 4(스킬 문서의 '상한 2'는 기본값 서술). verifySeverities=['critical','high'] — verify 트리거(dial).
+// maxRounds — critic 재투입 포함 상한: 기본 2, 천장 4(스킬 문서의 '상한 2'는 기본값 서술). verifySeverities=['critical'](기본) — verify 트리거(dial). 위험 표면 high는 자동 추가.
 // critic=true — false면 critic 생략(작은 감사).
 // args가 JSON-encoded 문자열로 도착하는 호출 경로 방어(스모크 런에서 실측된 함정)
 let A = args || {}
@@ -41,7 +43,16 @@ const analyzeModel = A.analyzeModel || 'sonnet'
 const verifyModel = A.verifyModel || 'opus'
 const criticModel = A.criticModel || 'opus'
 const maxRounds = Math.max(1, Math.min(4, A.maxRounds || 2))
-const verifySev = Array.isArray(A.verifySeverities) ? A.verifySeverities : ['critical', 'high']
+// verify 트리거(0.9.16): 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
+// 근거(실측): reviewer(opus·xhigh)가 서브에이전트 세션 1,634+로 단일 최대 소비처였고, 그 대부분이
+// '일반 high' verify였다. 일반 high는 메인(opus·xhigh, full context)이 직접 판정하는 편이 싸고 정확하다.
+// 위험 표면(auth·권한·자금경로·상태전이·마이그레이션·시크릿)의 high는 틀리면 비싸므로 계속 반증한다.
+// A.verifySeverities를 명시하면 그 값이 우선(override 경로 무손상) — 예전 동작은 ['critical','high'].
+const verifySev = Array.isArray(A.verifySeverities) ? A.verifySeverities : ['critical']
+const RISK_SURFACE_RE = /auth|인증|권한|permission|rbac|role|token|session|secret|credential|tenant|isolation|결제|payment|billing|refund|환불|자금|정산|payout|멱등|idempoten|마이그레이션|migration|schema|상태\s*전이|state\s*machine|transition/i
+const isRiskSurface = (f) => RISK_SURFACE_RE.test(`${f.title || ''} ${f.where || ''} ${f.category || ''} ${f.impact || ''}`)
+// critical은 무조건 · high는 위험 표면일 때만 · (verifySev에 high를 명시했다면 첫 절이 이미 커버)
+const shouldVerify = (f) => verifySev.includes(f.severity) || (f.severity === 'high' && isRiskSurface(f))
 // critic auto-scale(0.8.3): 소규모 감사(≤2 유닛)엔 critic 기본 off — caller가 opt-out을 기억 안 해도 opus critic 낭비 없음.
 // 명시 지정(A.critic)은 항상 존중. 스킬 §0의 '소규모=critic:false' 권고를 워크플로에 baked-in.
 const useCritic = A.critic === undefined ? units0.length > 2 : A.critic !== false
@@ -206,8 +217,8 @@ while (pending.length && round < maxRounds) {
     const fresh = all.filter((f) => !seen.has(keyOf(f)))
     dedupSkipped += all.length - fresh.length
     fresh.forEach((f) => seen.add(keyOf(f)))
-    const toV = fresh.filter((f) => verifySev.includes(f.severity))
-    const rest = fresh.filter((f) => !verifySev.includes(f.severity)).map((f) => ({ ...f, verdict: { verdict: 'unverified', corrected_severity: null, note: 'verify 트리거 미해당(dial)' } }))
+    const toV = fresh.filter(shouldVerify)
+    const rest = fresh.filter((f) => !shouldVerify(f)).map((f) => ({ ...f, verdict: { verdict: 'unverified', corrected_severity: null, note: f.severity === 'high' ? 'verify 트리거 미해당(일반 high — 메인이 직접 판정)' : 'verify 트리거 미해당(dial)' } }))
     if (!toV.length) return { unit: u.key, findings: rest }
     return parallel(toV.map((f) => () => verifyOne(f, round))).then((vs) => ({ unit: u.key, findings: [...vs.filter(Boolean), ...rest] }))
   }
