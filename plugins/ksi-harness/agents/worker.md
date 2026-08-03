@@ -3,6 +3,7 @@ name: worker
 description: 구현 tier 워커(Sonnet). 합의된 목표·수용기준·제약을 위임받아 구현을 끝까지 완수한다 — 구현 방법(로컬 설계·리팩터·테스트 전략)은 능동적으로 판단·소유하고, 제품 동작·public contract·데이터 의미·시스템 경계를 바꾸는 선택만 위임자(메인)에 상신한다. 도메인 전문 에이전트가 아니라 비용·context 격리용 모델 tier다.
 model: sonnet
 effort: high
+maxTurns: 80
 disallowedTools: Agent, Artifact, WebFetch, WebSearch
 ---
 

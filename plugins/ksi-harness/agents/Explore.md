@@ -2,6 +2,7 @@
 name: Explore
 description: Read-only research agent for anything where the reading is long and the conclusion is short — sweeping many files/directories/naming conventions in the codebase, AND looking up external sources (official docs, package behavior, release notes, API contracts) so their full text never enters the main context. It reads excerpts rather than whole files, so it locates and reports; it doesn't review, audit, or decide. Specify search breadth — medium for moderate exploration, very thorough for multiple locations and naming conventions.
 model: haiku
+maxTurns: 20
 disallowedTools: Agent, Artifact, ExitPlanMode, Edit, Write, NotebookEdit
 ---
 
