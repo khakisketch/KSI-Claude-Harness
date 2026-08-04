@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.23-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.24-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 
@@ -64,7 +64,17 @@ Claude를 느리게 만드는 게 아니라 결과를 믿을 수 있게 만드�
 
 ## 설치
 
-Claude Code 안에서 세 줄이면 끝납니다.
+Claude Code에 이 저장소 주소를 주고 설치를 부탁하는 게 가장 빠릅니다.
+
+```
+https://github.com/khakisketch/KSI-Claude-Harness 설치해줘
+```
+
+Claude가 [INSTALL.md](INSTALL.md)의 절차를 따라 설치하고, 마지막에 실제로 도는지
+확인까지 합니다. 기존 설정을 말없이 덮어쓰지 않습니다.
+
+<details open>
+<summary><b>직접 입력하려면 (세 줄)</b></summary>
 
 ```
 /plugin marketplace add khakisketch/KSI-Claude-Harness
@@ -73,11 +83,13 @@ Claude Code 안에서 세 줄이면 끝납니다.
 ```
 
 `/ksi-setup`이 나머지를 마무리합니다 — 감사·목표 워크플로를 `~/.claude/workflows/`에 배치하고,
-의존성(git·python3 필수 / ruff·Playwright 권장)을 점검하고, 실제로 도는지 확인까지 합니다.
+의존성(git·python3 필수 / ruff·Playwright 권장)을 점검하고, 실제로 도는지 확인합니다.
 플러그인 번들이 `.js` 워크플로를 나르지 못해서 이 한 단계가 필요합니다.
 
-**전역 지침은 직접 정하세요.** 플러그인은 `~/.claude/CLAUDE.md`를 심을 수 없습니다.
-`/ksi-setup`이 템플릿 위치를 알려주지만, 이미 쓰던 지침이 있으면 덮어쓰지 않습니다.
+</details>
+
+전역 지침(`~/.claude/CLAUDE.md`)은 **없으면 자동으로 채우고, 이미 있으면 건드리지 않습니다.**
+쓰던 지침이 있는 경우 템플릿에만 있는 절을 보여주고 병합할지 물어봅니다.
 
 다음 세션부터 아래가 자동으로 동작합니다.
 
@@ -91,7 +103,9 @@ git clone https://github.com/khakisketch/KSI-Claude-Harness.git
 cd KSI-Claude-Harness
 bash scripts/doctor.sh              # 의존성 점검
 bash scripts/sync-machine.sh        # 모드 자동 감지 (Windows는 git-bash)
-cp templates/CLAUDE.md.example ~/.claude/CLAUDE.md
+
+# 전역 지침 — 쓰던 게 있으면 덮어쓰지 않습니다
+[ -s ~/.claude/CLAUDE.md ] || cp templates/CLAUDE.md.example ~/.claude/CLAUDE.md
 ```
 
 이 경우 `/plugin install`은 하지 마세요 — 스킬이 두 벌로 뜨고 같은 훅이 2회 발화합니다.

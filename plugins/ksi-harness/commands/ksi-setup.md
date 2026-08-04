@@ -42,19 +42,44 @@ description: 플러그인 설치 후 1회 — 감사·목표 워크플로와 보
    bash "$CLAUDE_PLUGIN_ROOT/scripts/doctor.sh" 2>&1 | tail -12
    ```
 
-4. **전역 지침(`~/.claude/CLAUDE.md`)** — 플러그인은 전역 지침을 심을 수 없다. 이 파일이
-   없으면 템플릿 위치를 안내한다(자동으로 덮어쓰지 않는다 — 사용자가 이미 쓰고 있을 수 있다):
+4. **전역 지침(`~/.claude/CLAUDE.md`)** — 플러그인은 전역 지침을 심을 수 없어 여기서 채운다.
+   있고 없고에 따라 다르게 처리한다. 아래를 그대로 실행하면 분기가 결정된다:
 
    ```bash
-   test -f "$HOME/.claude/CLAUDE.md" && echo "이미 있음 — 건드리지 않음" \
-     || echo "템플릿: $CLAUDE_PLUGIN_ROOT/templates/CLAUDE.md.example"
+   if [ -s "$HOME/.claude/CLAUDE.md" ]; then echo "EXISTS"; else echo "ABSENT"; fi
    ```
 
-   없을 때만 "이 템플릿을 `~/.claude/CLAUDE.md`로 복사하고 스택 섹션을 팀에 맞게 고치라"고
-   1줄 제안한다. 복사 여부는 사용자가 정한다.
+   - **`ABSENT`** — 자동으로 채운다. 잃을 게 없다:
+
+     ```bash
+     mkdir -p "$HOME/.claude"
+     if [ -s "$HOME/.claude/CLAUDE.md" ]; then
+       echo "이미 내용 있음 — 건드리지 않음"
+     else
+       cp "$CLAUDE_PLUGIN_ROOT/templates/CLAUDE.md.example" "$HOME/.claude/CLAUDE.md"
+       echo "생성됨 ($(wc -l < "$HOME/.claude/CLAUDE.md")줄)"
+     fi
+     ```
+
+     복사했다고 보고하고, **스택 섹션(Python/TS/DB 등)은 팀에 맞게 고치라**고 1줄 덧붙인다.
+
+   - **`EXISTS`** — **덮어쓰지 않는다.** 사용자가 쌓아온 지침을 말없이 날리는 건 되돌릴 수
+     없다. 대신 템플릿에만 있는 내용을 보여주고, 병합할지 물어본다:
+
+     ```bash
+     diff --unified=0 "$HOME/.claude/CLAUDE.md" \
+       "$CLAUDE_PLUGIN_ROOT/templates/CLAUDE.md.example" | head -40
+     ```
+
+     차이가 크면 전문을 붙여넣지 말고 "템플릿에만 있는 절: A·B·C" 수준으로 요약해 제시한다.
+     사용자가 병합을 원하면 해당 절만 덧붙이고, 기존 문장은 건드리지 않는다.
+
+   판정(`-s`)과 복사를 같은 조건문에 묶는다. `cp -n`은 쓰지 않는다 — GNU가 "동작이 바뀔 수
+   있다"고 경고하는 비표준 플래그인 데다, **0바이트 파일을 '존재'로 봐서** 판정은 `ABSENT`인데
+   복사는 건너뛰는 어긋남이 생긴다(빈 `CLAUDE.md`가 영영 안 채워진다).
 
 5. 결과를 4줄 이내로 보고한다: 배치된 워크플로 개수 · smoke 결과 · doctor가 지적한 누락
-   의존성 · 전역 지침 상태. 실패가 있으면 무엇이 실패했는지 그대로 적는다.
+   의존성 · 전역 지침 상태(자동 생성/기존 유지). 실패가 있으면 무엇이 실패했는지 그대로 적는다.
 
 ## 주의
 
