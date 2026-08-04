@@ -11,7 +11,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 ## 0. 루프 골격
 감사·adversarial verify·완성도 critic 루프는 `~/.claude/workflows/audit-loop.js`(saved workflow) 재사용. 캡처(§2)는 골격 밖에서 먼저 하고, units에 페이지/차원별 프롬프트 + 스크린샷 경로를 넘긴다.
 `Workflow({scriptPath: '~/.claude/workflows/audit-loop.js', args: {units:[{key,prompt,model?}], context, verifySeverities, maxRounds, analyzeModel, batchSize, critic}})`
-> 파일 없으면 `bash scripts/sync-machine.sh --plugin`으로 `~/.claude/workflows/` 배치. 그동안은 §1–6을 인터랙티브로.
+> 파일 없으면 `/ksi-setup`(플러그인 설치) 또는 `bash scripts/sync-machine.sh --plugin`(repo clone)으로 `~/.claude/workflows/` 배치. 그동안은 §1–6을 인터랙티브로.
 - 루프 의미론(트리거·survivor·정지·degraded·폴백)은 audit-loop.js 상단 LOOP CONTRACT 참조. dial: verifySeverities·maxRounds·analyzeModel·batchSize(rate-limit 예방)·critic(소규모는 false).
 - 티어링: 캡처·인벤토리=haiku(Explore) · 시각 감사=`model:'sonnet'` · 발견성·역할게이팅·흐름단절=`model:'opus'`(unit별 지정, 미지정은 analyzeModel 폴백) · verify/critic=reviewer · 종합=메인.
 - context에 design-side spec(페르소나·동선 step-budget·상태 인벤토리·마이크로카피 SSOT·접근성 예산 = CLAUDE.md UI 절)을 반드시 넣는다 — 기준 없는 감사는 '안 깨졌나'만 본다.

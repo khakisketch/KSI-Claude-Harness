@@ -63,7 +63,8 @@ except Exception:
 [ "$newer" = "1" ] || exit 0
 
 if [ "$MODE" = plugin ]; then
-  apply="검토 후 업데이트: /plugin marketplace update → /plugin update ksi-harness"
+  # 워크플로(.js)는 플러그인 번들이 나르지 않아 /plugin update로 갱신되지 않는다 — /ksi-setup 재실행이 필요.
+  apply="검토 후 업데이트: /plugin marketplace update → /plugin update ksi-harness → /ksi-setup(워크플로 갱신)"
 else
   apply="받기: cd \"$ANCHOR\" && bash scripts/sync-machine.sh --native"
 fi

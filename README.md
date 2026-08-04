@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.22-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.23-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 
@@ -64,28 +64,39 @@ Claude를 느리게 만드는 게 아니라 결과를 믿을 수 있게 만드�
 
 ## 설치
 
-```bash
-# 1. 의존성 점검 — git·python3·claude 필수 / ruff·Playwright 권장
-bash scripts/doctor.sh
-```
+Claude Code 안에서 세 줄이면 끝납니다.
 
 ```
-# 2. 플러그인 설치 (Claude Code 안에서)
 /plugin marketplace add khakisketch/KSI-Claude-Harness
 /plugin install ksi-harness@ksi-tools
+/ksi-setup
 ```
 
-```bash
-# 3. 지침 템플릿 복사 (플러그인은 전역 지침을 심을 수 없어 직접 복사)
-cp templates/CLAUDE.md.example ~/.claude/CLAUDE.md   # 스택 섹션은 팀에 맞게 수정
+`/ksi-setup`이 나머지를 마무리합니다 — 감사·목표 워크플로를 `~/.claude/workflows/`에 배치하고,
+의존성(git·python3 필수 / ruff·Playwright 권장)을 점검하고, 실제로 도는지 확인까지 합니다.
+플러그인 번들이 `.js` 워크플로를 나르지 못해서 이 한 단계가 필요합니다.
 
-# 4. 워크플로·스크립트 배치 (감사 스킬이 이 경로를 호출)
-bash scripts/sync-machine.sh --plugin
-```
+**전역 지침은 직접 정하세요.** 플러그인은 `~/.claude/CLAUDE.md`를 심을 수 없습니다.
+`/ksi-setup`이 템플릿 위치를 알려주지만, 이미 쓰던 지침이 있으면 덮어쓰지 않습니다.
 
 다음 세션부터 아래가 자동으로 동작합니다.
 
-> 이미 `~/.claude/{skills,agents,hooks}`에 이 골격의 로컬 사본을 둔 머신이라면 플러그인을 중복 설치하지 마세요. 스킬이 두 벌로 뜨고 같은 훅이 2회 발화합니다. 일반 팀원은 해당 없습니다.
+<details>
+<summary><b>하네스를 직접 고쳐 쓰려면 (repo clone)</b></summary>
+
+훅을 바꾸거나 스킬을 개조할 생각이면 플러그인 대신 repo를 clone해 `~/.claude/`에 직접 얹는 편이 낫습니다.
+
+```bash
+git clone https://github.com/khakisketch/KSI-Claude-Harness.git
+cd KSI-Claude-Harness
+bash scripts/doctor.sh              # 의존성 점검
+bash scripts/sync-machine.sh        # 모드 자동 감지 (Windows는 git-bash)
+cp templates/CLAUDE.md.example ~/.claude/CLAUDE.md
+```
+
+이 경우 `/plugin install`은 하지 마세요 — 스킬이 두 벌로 뜨고 같은 훅이 2회 발화합니다.
+
+</details>
 
 ---
 
@@ -383,7 +394,7 @@ function claude-plain { claude.exe @args }
 <details>
 <summary><b>요구사항 · OS별 차이</b></summary>
 
-한 번에 점검: `bash scripts/doctor.sh`
+한 번에 점검: `/ksi-setup`이 설치 시 자동으로 돌립니다(repo clone이면 `bash scripts/doctor.sh`).
 
 - **ruff 훅** — `ruff`가 PATH에 있어야(보통 `~/.local/bin/ruff`). 없으면 조용히 skip.
 - **ui-audit** — Node + Playwright + 앱을 띄울 수 있는 환경.
@@ -433,10 +444,9 @@ scripts/test-hooks.sh ~/.claude/hooks # ★ 실제로 돌아가는 훅(live) —
 
 `~/.claude/workflows/`(개인) 또는 프로젝트 `.claude/workflows/`에 복사해 씁니다. args 상세는 각 파일 상단 주석.
 
-> ⚠️ **플러그인 번들은 이 워크플로를 자동으로 나르지 않습니다** — Claude Code 플러그인은 `skills`·`agents`·`hooks`만 자동설치합니다(공식 미지원).
-> 감사 스킬이 `~/.claude/workflows/` 경로로 호출하므로 **설치 후 `bash scripts/sync-machine.sh --plugin`을 한 번** 실행해
-> 워크플로·스크립트(`ksi-goals.py`·`load-guard.sh`·`capture.mjs`·`journey.mjs`)·템플릿(`visual-qa.yml`·`domain-invariants.example.md`)을 배치하세요.
-> 미배치 시 감사 스킬은 인터랙티브 fallback으로 동작합니다. 배치 여부는 `bash scripts/doctor.sh`가 점검합니다.
+> Claude Code 플러그인은 `skills`·`agents`·`hooks`만 자동설치합니다 — `.js` 워크플로 슬롯이 규약에 없어서
+> **`/ksi-setup`이 이걸 `~/.claude/workflows/`로 배치**합니다(보조 스크립트·템플릿도 함께). 설치 후 한 번이면 됩니다.
+> 미배치 상태여도 감사 스킬은 인터랙티브 fallback으로 동작합니다 — 느릴 뿐 막히지는 않습니다.
 
 | 워크플로 | 역할 |
 |---|---|

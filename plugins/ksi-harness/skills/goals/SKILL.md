@@ -42,6 +42,6 @@ $G abandon --id G001 --reason "..."            # 되돌리기 명령 없음 — 
 `status` 복원 → `start` → 작업 → `attempt` → reviewer 게이트 → `gate pass`/refuted 반복 → 다음 목표.
 
 ## `/goals run` — 자율 실행 (evidence-gated)
-실물화: `~/.claude/workflows/goals-run.js`(native는 saved workflow로 자동등록 · 플러그인 머신은 `sync-machine.sh --plugin`이 `~/.claude/workflows/`에 배치).
+실물화: `~/.claude/workflows/goals-run.js`(native는 saved workflow로 자동등록 · 플러그인 머신은 `/ksi-setup`이 `~/.claude/workflows/`에 배치).
 `args: {dir(프로젝트 경로, 필수), maxGoals(세션 예산, 기본 6·천장 20), context}`.
 동작 계약(종료조건·red-lane·evidence-gate·세션-경계 stitching)은 `goals-run.js` 상단 RUN CONTRACT 주석이 SSOT.

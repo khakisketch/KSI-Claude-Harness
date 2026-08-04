@@ -1,0 +1,55 @@
+# visual-qa.yml — 프로젝트별 독립 시각-QA 캡처 러너 (ui-audit §2의 CI 캡처 백엔드)
+#
+# 사용: 프로젝트 repo의 .github/workflows/visual-qa.yml로 복사하고 <PLACEHOLDER>를 채운다.
+#   (repo에 넣고 push하는 것은 대표자 결정 레인 — 하네스가 임의 push하지 않는다.)
+# 역할 분담: 캡처(CPU-heavy)만 CI 러너에서 수행하고, 판독·adversarial verify(ui-audit §3~4)는
+#   `gh run download`로 아티팩트를 받아 로컬 하네스가 수행한다. 러너 = 프로젝트별 독립·병렬 by design.
+# 캡처 러너: ~/.claude/scripts/capture.mjs를 repo scripts/visual-qa-capture.mjs로 복사(외부 의존 0, local과 동일 러너 — 픽셀-중립 효율화 내장).
+#   페이지 목록은 repo에 visual-qa.pages.json으로 커밋 — 예: [{"key":"dashboard","path":"/"}]
+
+name: visual-qa
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**.tsx'
+      - '**.jsx'
+      - '**.css'
+      - '**.vue'
+      - '**.html'
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      # <PLACEHOLDER: 스택 기동 — 프로젝트에 맞게. 예: docker compose up -d / npm run build && start.
+      #  시드 데이터는 ui-audit 기준대로 "빈 / 희박(1~2행) / 아주 긴 한글 이름" 픽스처로 — 풍부한 mock 금지.>
+      - name: Boot app
+        run: |
+          npm run build
+          (npm run start &)
+          npx wait-on http://localhost:3000 --timeout 120000
+
+      - name: Capture screenshots
+        env:
+          QA_BASE_URL: http://localhost:3000
+        run: node scripts/visual-qa-capture.mjs --pages visual-qa.pages.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-shots
+          path: shots/
+          retention-days: 14
