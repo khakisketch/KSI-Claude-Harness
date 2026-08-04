@@ -98,6 +98,14 @@ bash scripts/sync-machine.sh --plugin
 
 <img src="assets/demo/fake-green.png" alt="테스트 통과 후 검증을 상기시켜 진짜 원인을 찾아내는 비교 화면" width="100%">
 
+### 큰 작업을 맡길 때
+
+<img src="assets/demo/delegation.png" alt="파일을 직접 다 읽어 문맥이 막히는 경우와, 조사·구현·검증을 나눠 결론만 받는 경우의 비교" width="100%">
+
+### 며칠 뒤 다시 열었을 때
+
+<img src="assets/demo/memory.png" alt="어디까지 했는지 다시 설명해야 하는 경우와, 작업 장부가 상태를 복원하는 경우의 비교" width="100%">
+
 <details>
 <summary><b>어떤 상황에서 무엇이 발화하는지 (전체)</b></summary>
 
