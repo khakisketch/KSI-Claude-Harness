@@ -141,25 +141,34 @@ bash scripts/sync-machine.sh --plugin
 
 <table>
 <tr>
-<td width="33%" align="center"><img src="assets/characters/explore.png" width="200" alt="Explore — 파란 안전모를 쓴 신입 조사원"></td>
-<td width="33%" align="center"><img src="assets/characters/worker.png" width="200" alt="worker — 노란 안전모를 쓴 베테랑 작업자"></td>
-<td width="33%" align="center"><img src="assets/characters/reviewer.png" width="200" alt="reviewer — 흰 안전모를 쓴 감리"></td>
+<td colspan="2" align="center">
+<img src="assets/characters/reviewer.png" width="300" alt="reviewer — 흰 안전모를 쓴 감리"><br/>
+<b><code>reviewer</code></b> · ⚪ 흰 안전모 · <b>감리</b><br/>
+<code>Opus</code> · <code>high</code> · <i>구조적 read-only</i><br/>
+<sub>도면 대비 검측하고 아니면 <b>반려</b>한다 — <b>"이거 진짜 맞아?"</b><br/>
+이 사람의 승인 없이는 '완료'가 되지 않는다.</sub>
+</td>
 </tr>
 <tr>
-<td align="center"><b><code>Explore</code></b><br/>🔵 파란 안전모 · 신입 조사원<br/><br/><code>Haiku</code></td>
-<td align="center"><b><code>worker</code></b><br/>🟡 노란 안전모 · 시공 베테랑<br/><br/><code>Sonnet</code> · <code>xhigh</code></td>
-<td align="center"><b><code>reviewer</code></b><br/>⚪ 흰 안전모 · 감리<br/><br/><code>Opus</code> · <code>high</code></td>
-</tr>
-<tr>
-<td align="center"><sub>먼저 들어가 둘러보고 돌아온다.<br/>파일 덤프가 아니라 <b>"무엇이 어디에 있나"</b>만.<br/><i>(read-only)</i></sub></td>
-<td align="center"><sub>현장에서 실제로 짓는다.<br/>합의된 목표 안에서 <b>방법은 스스로 소유</b>.</sub></td>
-<td align="center"><sub>도면 대비 검측하고 아니면 반려한다.<br/><b>"이거 진짜 맞아?"</b><br/><i>(구조적 read-only)</i></sub></td>
+<td width="50%" align="center">
+<img src="assets/characters/worker.png" width="190" alt="worker — 노란 안전모를 쓴 베테랑 작업자"><br/>
+<b><code>worker</code></b> · 🟡 노란 안전모 · 시공 베테랑<br/>
+<code>Sonnet</code> · <code>xhigh</code><br/>
+<sub>현장에서 실제로 짓는다.<br/>합의된 목표 안에서 <b>방법은 스스로 소유</b>.</sub>
+</td>
+<td width="50%" align="center">
+<img src="assets/characters/explore.png" width="190" alt="Explore — 파란 안전모를 쓴 신입 조사원"><br/>
+<b><code>Explore</code></b> · 🔵 파란 안전모 · 신입 조사원<br/>
+<code>Haiku</code> · <i>read-only</i><br/>
+<sub>먼저 들어가 둘러보고 돌아온다.<br/>파일 덤프가 아니라 <b>"무엇이 어디에 있나"</b>만.</sub>
+</td>
 </tr>
 </table>
 
 **메인**은 *사용자가 세션마다 고릅니다* — 판단·오케스트레이션 담당이고, 하네스는 어떤 메인 모델도 가정하지 않습니다.
 
-감리가 검측해서 도면과 다르면 재시공 — 그게 이 하네스의 **evidence gate**입니다. 만든 사람이 스스로 통과시키지 못합니다.
+> 조사원이 찾고 → 작업자가 짓고 → **감리가 검측한다.** 도면과 다르면 재시공.
+> 그게 이 하네스의 **evidence gate**입니다 — 만든 사람이 스스로 통과시키지 못합니다.
 
 <details>
 <summary><b>왜 reviewer가 worker보다 effort가 낮은가?</b></summary>
