@@ -3,7 +3,7 @@
 # 뒤처졌으면 '업데이트 가능' 1줄을 사용자에게 알린다. **알림-only — 코드를 자동으로 바꾸지 않는다.**
 #   왜 자동적용 안 하나: 이 하네스는 dangerous mode(권한 프롬프트 off)로 돌 수 있어, 원격 코드를 검토 없이
 #   자동 pull·실행하면 공급망 위험이다. 그래서 "새 버전 있다"만 알리고 적용은 사람이 한다.
-# 두 모드 자동 감지(0.9.4):
+# 두 모드 자동 감지:
 #   · 플러그인 머신: ${CLAUDE_PLUGIN_ROOT} 설치본의 plugin.json version이 앵커 → 적용은 /plugin update.
 #   · native 머신(~/.claude 직접 운용): ${KSI_HARNESS_REPO}(repo checkout 경로)의 plugin.json version이 앵커
 #     → 적용은 sync-machine.sh --native. KSI_HARNESS_REPO 미설정 시 native는 조용히 skip(개인 경로를 dist에 박지 않는다).
@@ -43,7 +43,7 @@ case "$installed" in *[!0-9.]*|''|.*|*.) exit 0 ;; esac
 
 # 원격 URL: 앵커가 git 클론 안이면 그 origin, 아니면 알려진 repo(이 플러그인의 home).
 url="$(git -C "$ANCHOR" config --get remote.origin.url 2>/dev/null)"
-[ -n "$url" ] || url="https://github.com/KhakiSkech/ksi-claude-harness.git"
+[ -n "$url" ] || url="https://github.com/khakisketch/KSI-Claude-Harness.git"
 
 # 최신 릴리스 태그 — 4s timeout, 실패(오프라인·auth·timeout)는 전부 silent.
 command -v timeout >/dev/null 2>&1 && TO="timeout 4" || TO=""

@@ -19,6 +19,10 @@
 #   (isCompactSummary 또는 compactMetadata 레코드) 이후'의 편집만 본다. 이게 없으면
 #   요약으로 이어진 세션에서 이전 세션의 tsx 편집까지 잡혀 매 턴 오발한다(거짓양성).
 # - 루프 방지: stop_hook_active면 통과. transcript 없음/파싱 오류면 graceful 통과(세션 안 깸).
+# - A-1(하네스 자가감사, CONFIRMED high): git이 없거나 git repo가 아니어서 미커밋 여부를 못 가리는 경우는
+#   예전엔 통째로 조용히 통과했다 — 완료 게이트가 통보 없이 사라지는 '조용한 강등'. transcript에서 화면
+#   편집이 감지됐는데 git으로 커밋 여부를 확인 못 하면(비-git 프로젝트·git 미설치) 차단은 하지 않되
+#   그 사실을 systemMessage로 1회 알린다(정상 발화와 동일한 dedup/세션캡 3회, 키만 분리).
 set -uo pipefail
 
 input="$(cat)"
@@ -43,7 +47,7 @@ EXTS = (".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss")
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 changed = set()
 
-# 효율(0.8.3): 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 실행 — 미커밋 EXTS 파일이 하나도 없으면
+# 효율: 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 실행 — 미커밋 EXTS 파일이 하나도 없으면
 # transcript 전체 파싱을 통째로 건너뛴다(관련 미커밋 0인 흔한 Stop에서 O(transcript) 비용 제거). git 불가면 종전대로 진행(graceful).
 import subprocess
 
@@ -164,9 +168,34 @@ except Exception:
 if not changed:
     sys.exit(0)
 
-# 4) git 미커밋 프론트 변경과 교차 — uncommitted는 위(git-first)에서 이미 계산. git 불가면 graceful 통과.
+# 4) git 미커밋 프론트 변경과 교차 — uncommitted는 위(git-first)에서 이미 계산.
 #    normcase: Windows NTFS는 대소문자 무시라 케이스가 갈리면 교차가 공집합이 되는 거짓음성 — normcase로 케이스폴드(POSIX no-op).
+# A-1(하네스 자가감사, CONFIRMED high): git 불가(비-git 프로젝트·git 미설치)면 이전엔 여기서 조용히 exit(0) —
+# 완료 게이트가 통보 없이 사라지는 '조용한 강등'이었다(가장 경계하는 실패 모드). 여기 도달했다는 건 changed
+# (transcript 편집분)가 이미 비어있지 않다는 뜻(위 "if not changed" 통과)이라 화면은 만졌는데 커밋 여부만
+# 못 가린 것 — 차단하지 않고 그 사실 자체를 1회 알린다(비차단 systemMessage, 정상 발화와 동형).
+# dedup/세션캡은 정상 발화와 동일 메커니즘을 그대로 재사용하되 키 prefix만 분리(두 알림 종류가 서로의
+# 하드캡을 깎아먹지 않게).
 if not git_ok or uncommitted is None:
+    import hashlib, glob as _glob, tempfile
+    sid = d.get("session_id", "") or "nosession"
+    fs_hash = hashlib.sha1("\n".join(sorted(changed)).encode()).hexdigest()[:8]
+    sent_dir = os.path.join(tempfile.gettempdir(), f"claude-{getattr(os, 'getuid', lambda: 0)()}")
+    sent = os.path.join(sent_dir, f"uirender-gitunavail-{sid}-{fs_hash}")
+    try:
+        os.makedirs(sent_dir, exist_ok=True)
+        if os.path.exists(sent):
+            sys.exit(0)
+        if len(_glob.glob(f"{sent_dir}/uirender-gitunavail-{sid}-*")) >= 3:
+            sys.exit(0)
+        open(sent, "w").close()
+    except Exception:
+        pass
+    msg = (
+        "git 저장소가 아니거나 git을 사용할 수 없어 화면 파일 변경분의 커밋 여부를 판별하지 못했습니다 — "
+        "화면을 고쳤다면 렌더를 직접 확인하세요(레이아웃이면 390·768·1440, 모달·팝오버는 연 상태로)."
+    )
+    print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
     sys.exit(0)
 changed = {os.path.normcase(os.path.normpath(p)) for p in changed} & uncommitted
 
@@ -181,7 +210,7 @@ if n == 0:
 import hashlib, glob as _glob, tempfile
 sid = d.get("session_id", "") or "nosession"
 fs_hash = hashlib.sha1("\n".join(sorted(changed)).encode()).hexdigest()[:8]
-# Windows 이식성(2026-07-18 실측): os.getuid()는 POSIX 전용이라 Windows Python이면 이 지점에서
+# Windows 이식성(실측): os.getuid()는 POSIX 전용이라 Windows Python이면 이 지점에서
 # AttributeError로 훅 전체가 죽어 영영 침묵했다(stderr는 2>/dev/null에 은폐 — 발화 직전 크래시).
 # /tmp 하드코딩도 Windows Python에선 C:\tmp로 풀린다. gettempdir()(POSIX=TMPDIR//tmp·Win=%TEMP%)
 # + getuid 폴백으로 교체 — POSIX 동작은 불변.

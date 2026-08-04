@@ -15,7 +15,7 @@ export const meta = {
 //  aggregate     = 최악 unit verdict. material 하나라도면 그 렌즈는 reference 유지가 정답.
 //  통제(핵심)     = challenger/reference는 **model만** 다르고 프롬프트·context·schema는 동일. 이게 깨지면 비교가 아니라 잡음이다.
 //  model ID 예외  = 기본은 alias만(challengerModel/referenceModel, 풀 ID 금지). version-pin이 필요한 신구버전 A/B 비교(예: 특정 모델 스냅샷 간 비교)는 예외적으로 풀 모델 ID 허용.
-//  effort        = 양쪽 analyze에 **동일 effort를 명시**(pairEffort dial, 기본 'xhigh') — 세션 effort 상속에 기대지 않아 비-ultracode 세션에서도 통제가 성립(0.9.0, 런타임 agent({effort}) 지원 실측 확인). challenger가 xhigh 미지원 tier(haiku·pre-5 Sonnet)면 pairEffort:'high'로 낮춰 통제 유지. gap-diff는 reviewer(opus·xhigh·read-only, 부재 시 opus 폴백).
+//  effort        = 양쪽 analyze에 **동일 effort를 명시**(pairEffort dial, 기본 'xhigh') — 세션 effort 상속에 기대지 않아 비-ultracode 세션에서도 통제가 성립(런타임 agent({effort}) 지원 실측 확인). challenger가 xhigh 미지원 tier(haiku·pre-5 Sonnet)면 pairEffort:'high'로 낮춰 통제 유지. gap-diff는 reviewer(opus·xhigh·read-only, 부재 시 opus 폴백).
 //  왜 reviewer로 diff = producer(challenger/reference)와 다른 skeptic이 있어야 reference 환각·과장을 걸러 gap을 정직하게 잰다(cross-model error-decorrelation). challenger로 diff하면 correlated blind spot.
 //  gap-diff 오류  = agentType 미등록/미상(영구 오류)만 opus model로 폴백. 일시적 오류(rate-limit/timeout)는 폴백 대신 해당 unit을 failed_units로 DEGRADED 격리(rate-limit 악화 방지) — audit-loop.js와 동일 패턴.
 //  degraded recommendation = failed_units가 1건이라도 있으면 recommendation은 낙관 결론(downgrade 권장 등) 대신 'DEGRADED — 부분 실패로 결론 보류' 계열로 접힌다. tier 결정은 degraded=false인 run만 근거로 쓸 것.
@@ -40,7 +40,7 @@ if (!units.length) return { error: 'args.units가 비어 있음 — [{key, promp
 const CTX = A.context || ''
 const challengerModel = A.challengerModel || 'sonnet'
 const referenceModel = A.referenceModel || 'opus'
-// 통제의 일부(0.9.0): 양쪽 동일 effort 명시 — 세션 모드 무관. challenger가 xhigh 미지원이면 'high'로 낮춰 호출.
+// 통제의 일부: 양쪽 동일 effort 명시 — 세션 모드 무관. challenger가 xhigh 미지원이면 'high'로 낮춰 호출.
 const pairEffort = A.pairEffort || 'xhigh'
 const lens = A.lens || '(미지정 렌즈)'
 const gapAgent = A.gapAgent === undefined ? 'reviewer' : A.gapAgent

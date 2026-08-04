@@ -70,8 +70,17 @@ let pages;
 try {
   pages = JSON.parse(opt.pages.trim().startsWith('[') ? opt.pages : readFileSync(opt.pages, 'utf8'));
 } catch (e) { die(64, `--pages 해석 실패: ${e.message}`); }
-if (!Array.isArray(pages) || pages.length === 0 || !pages.every((p) => p.key && typeof p.path === 'string'))
-  die(64, '--pages는 비어있지 않은 [{key, path}] 배열이어야 함');
+if (!Array.isArray(pages) || pages.length === 0
+    || !pages.every((p) => typeof p.key === 'string' && p.key.length > 0 && typeof p.path === 'string'))
+  die(64, '--pages는 비어있지 않은 [{key(string), path(string)}] 배열이어야 함');
+// key는 <key>--<viewport>.png 파일명으로 그대로 쓰인다 — 숫자/객체 key는 위 타입체크로 막히지만,
+// 문자열이어도 경로 구분자·제어문자가 섞이면 manifest/screenshot 파일명이 깨지거나 의도치 않은
+// 경로로 쓰기가 될 수 있다(조용히 sanitize하지 않고 거부 — 이 파일의 '조용한 실패 금지' 원칙과 동형).
+const UNSAFE_KEY = /[\x00-\x1f<>:"/\\|?*]/;
+const badKey = pages.find((p) => UNSAFE_KEY.test(p.key));
+if (badKey)
+  die(64, `--pages[].key에 파일명으로 쓸 수 없는 문자가 있음: ${JSON.stringify(badKey.key)} `
+    + '(제어문자 · / \\ < > : " | ? * 금지)');
 
 let setupFn = null;
 if (opt.setup) {
@@ -99,7 +108,7 @@ const viewports = opt.viewports.split(',').map((v) => {
 // 상주 워크로드(dev server·빌드·다른 세션)에 양보 — 캡처는 배치성이라 자기 우선순위를 낮춘다(root 불필요).
 try { os.setPriority(10); } catch { /* 비지원 플랫폼 무시 */ }
 
-// 부하 적응 동시성(뷰포트 컨텍스트 단위) — 명시 --concurrency가 우선.
+// 부하 적응 동시성(작업 단위 = 페이지×뷰포트 조합, 자가감사 D-1 이후) — 명시 --concurrency가 우선.
 function autoConcurrency() {
   try {
     const ratio = os.loadavg()[0] / os.cpus().length;
@@ -154,69 +163,100 @@ let shot = 0;
 const failed = [];
 const manifest = [];
 
-async function captureViewport(vp) {
-  const context = await browser.newContext({
-    viewport: { width: vp.width, height: vp.height },
-    reducedMotion: 'reduce',
-  });
-  await context.route('**/*', (route) =>
-    TRACKERS.test(route.request().url()) ? route.abort() : route.continue());
-  const page = await context.newPage();
+// 작업 단위 = (페이지 × 뷰포트) 조합(자가감사 D-1 수정). 예전엔 큐가 뷰포트 단위였다 — 뷰포트가
+// 1~2개인데 페이지가 수십 개인 흔한 경우, --concurrency를 아무리 올려도 실제 병렬은 뷰포트 수에
+// 묶여 늘지 않았다. 뷰포트당 컨텍스트(뷰포트 크기·reducedMotion은 컨텍스트 속성이라 그대로 유지)는
+// lazily 1개만 만들어 같은 뷰포트의 작업들이 공유하고, setup도 컨텍스트당 1회만 돈다 — 그 안에서
+// 여러 작업이 각자 새 page(탭)로 동시에 캡처한다(쿠키·localStorage는 컨텍스트 공유라 로그인 유지,
+// sessionStorage 기반 인증만 탭 간 미공유 — 흔치 않은 케이스라 트레이드오프로 감수).
+const units = [];
+// offline 스텝은 page가 아니라 context 스코프(setOffline)라, 같은 뷰포트 컨텍스트를 공유하는 형제 탭까지
+// 오프라인으로 만든다. 큐가 (페이지×뷰포트)로 바뀐 뒤 동시 실행되므로 비결정적으로 캡처가 깨진다.
+// → offline을 쓰는 unit만 전용 컨텍스트로 격리한다(isolate 플래그).
+const usesOffline = (p) => Array.isArray(p.do) && p.do.some((s) => s && s.offline !== undefined);
+for (const vp of viewports) for (const p of pages) units.push({ vp, p, isolate: usesOffline(p) });
 
+const contexts = new Map(); // vp.key -> Promise<context|null>(setup 실패 시 null)
+// offline unit 전용 — 공유하지 않고 매번 새로 만들어 캡처 후 닫는다(형제 탭 오염 방지).
+async function newIsolatedContext(vp) { return buildContext(vp, `${vp.key}#isolated`); }
+function getContext(vp) {
+  if (!contexts.has(vp.key)) contexts.set(vp.key, buildContext(vp, vp.key));
+  return contexts.get(vp.key);
+}
+function buildContext(vp, label) {
+  return (async () => {
+      const context = await browser.newContext({
+        viewport: { width: vp.width, height: vp.height },
+        reducedMotion: 'reduce',
+      });
+      await context.route('**/*', (route) =>
+        TRACKERS.test(route.request().url()) ? route.abort() : route.continue());
+      if (setupFn) {
+        const setupPage = await context.newPage();
+        try {
+          await setupFn(setupPage, { base: opt.base, viewport: vp });
+        } catch (e) {
+          failed.push(`setup(${label}): ${String(e.message).split('\n')[0]}`);
+          await setupPage.close();
+          await context.close();
+          return null;
+        }
+        await setupPage.close();
+      }
+      return context;
+  })();
+}
+
+async function captureOne({ vp, p, isolate }) {
+  const context = isolate ? await newIsolatedContext(vp) : await getContext(vp);
+  if (!context) return; // 이 뷰포트는 setup 실패로 스킵(이미 failed에 기록됨)
+  const page = await context.newPage();
   const consoleErrors = [];
   const failedReqs = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 300)); });
   page.on('requestfailed', (r) => failedReqs.push(`${r.method()} ${r.url()} :: ${r.failure()?.errorText}`));
   page.on('response', (r) => { if (r.status() >= 400) failedReqs.push(`${r.status()} ${r.url()}`); });
 
-  if (setupFn) {
-    try {
-      await setupFn(page, { base: opt.base, viewport: vp });
-    } catch (e) {
-      failed.push(`setup(${vp.key}): ${String(e.message).split('\n')[0]}`);
-      await context.close();
-      return;
-    }
-  }
-
-  for (const p of pages) {
-    const dest = path.join(opt.out, `${p.key}--${vp.key}.png`);
-    consoleErrors.length = 0;
-    failedReqs.length = 0;
-    try {
-      await page.goto(opt.base + p.path, { waitUntil: 'load', timeout: 90_000 });
-      // SPA는 load 이후에 데이터를 가져온다 — 짧게 정착을 기다리되 실패해도 진행(픽셀-중립).
-      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-      await page.addStyleTag({ content: FREEZE_CSS });
-      await page.evaluate(() => document.fonts?.ready);
+  const dest = path.join(opt.out, `${p.key}--${vp.key}.png`);
+  try {
+    await page.goto(opt.base + p.path, { waitUntil: 'load', timeout: 90_000 });
+    // SPA는 load 이후에 데이터를 가져온다 — 짧게 정착을 기다리되 실패해도 진행(픽셀-중립).
+    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+    await page.addStyleTag({ content: FREEZE_CSS });
+    await page.evaluate(() => document.fonts?.ready);
+    await page.waitForTimeout(p.settle ?? opt.settle);
+    if (Array.isArray(p.do) && p.do.length) {
+      await runSteps(page, p.do);
       await page.waitForTimeout(p.settle ?? opt.settle);
-      if (Array.isArray(p.do) && p.do.length) {
-        await runSteps(page, p.do);
-        await page.waitForTimeout(p.settle ?? opt.settle);
-      }
-      await page.screenshot({ path: dest, fullPage: opt.fullpage });
-      const buf = readFileSync(dest);
-      const finalUrl = page.url();
-      manifest.push({
-        key: p.key, viewport: vp.key, path: p.path, finalUrl,
-        redirected: !finalUrl.endsWith(p.path) && !finalUrl.includes(p.path),
-        bytes: statSync(dest).size,
-        sha1: createHash('sha1').update(buf).digest('hex'),
-        consoleErrors: [...new Set(consoleErrors)].slice(0, 8),
-        failedRequests: [...new Set(failedReqs)].slice(0, 8),
-      });
-      shot += 1;
-    } catch (e) {
-      failed.push(`${p.key}--${vp.key}: ${String(e.message).split('\n')[0]}`);
     }
+    await page.screenshot({ path: dest, fullPage: opt.fullpage });
+    const buf = readFileSync(dest);
+    const finalUrl = page.url();
+    manifest.push({
+      key: p.key, viewport: vp.key, path: p.path, finalUrl,
+      redirected: !finalUrl.endsWith(p.path) && !finalUrl.includes(p.path),
+      bytes: statSync(dest).size,
+      sha1: createHash('sha1').update(buf).digest('hex'),
+      consoleErrors: [...new Set(consoleErrors)].slice(0, 8),
+      failedRequests: [...new Set(failedReqs)].slice(0, 8),
+    });
+    shot += 1;
+  } catch (e) {
+    failed.push(`${p.key}--${vp.key}: ${String(e.message).split('\n')[0]}`);
+  } finally {
+    await page.close();
+    if (isolate) await context.close();  // 전용 컨텍스트는 캡처 후 정리(누수 방지)
   }
-  await context.close();
 }
 
-const queue = [...viewports];
+const queue = [...units];
 await Promise.all(Array.from({ length: Math.min(conc, queue.length) }, async () => {
-  while (queue.length) await captureViewport(queue.shift());
+  while (queue.length) await captureOne(queue.shift());
 }));
+for (const ctxPromise of contexts.values()) {
+  const ctx = await ctxPromise;
+  if (ctx) await ctx.close();
+}
 await browser.close();
 
 writeFileSync(path.join(opt.out, 'manifest.json'), JSON.stringify(manifest, null, 2));

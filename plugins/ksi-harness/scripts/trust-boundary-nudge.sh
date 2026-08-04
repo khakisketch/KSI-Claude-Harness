@@ -21,7 +21,7 @@ if tool not in ("WebFetch", "WebSearch"):
 sid = d.get("session_id", "") or "nosession"
 
 # 세션당 1회 dedup (sentinel) — gate-nudge.sh 패턴 재사용.
-# Windows 이식성(2026-07-18): os.getuid() POSIX 전용·/tmp→C:\tmp 오해석 → gettempdir()+getuid 폴백(POSIX 불변).
+# Windows 이식성: os.getuid() POSIX 전용·/tmp→C:\tmp 오해석 → gettempdir()+getuid 폴백(POSIX 불변).
 sent = os.path.join(tempfile.gettempdir(), f"claude-{getattr(os, 'getuid', lambda: 0)()}", f"trustboundary-{sid}")
 try:
     os.makedirs(os.path.dirname(sent), exist_ok=True)

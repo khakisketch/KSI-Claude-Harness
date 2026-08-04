@@ -11,13 +11,20 @@
 #   ③ compaction 경계 이후 편집만(요약 후 이전 세션 기록 오발 방지).
 #   ④ 발화 조건 추가 협소화: 미커밋 .py 중 'tests/·test_*·alembic/·migrations/·services/·main.py'만.
 #      순수 util·스키마·설정만 고친 세션엔 침묵(과발화 방지 — .py는 .tsx보다 변경 빈도가 훨씬 높다).
-# - 루프 방지: stop_hook_active면 통과. transcript 없음/파싱 오류/비-git면 graceful 통과(세션 안 깸).
+#      B-1(하네스 자가감사, CONFIRMED high): models.py는 파일명만으로 판단하지 않는다 — 내용에 실제 상태전이
+#      신호(status/state 필드·Status/State 클래스·전이류 메서드·migration op)가 있을 때만 발화. 컬럼 정의뿐인
+#      순수 선언형 스키마는 침묵(과발화 방지). 나머지 목록(main.py 등)은 이름 자체가 동작을 의미해 그대로 둔다.
+# - 루프 방지: stop_hook_active면 통과. transcript 없음/파싱 오류면 graceful 통과(세션 안 깸).
+# - A-1(하네스 자가감사, CONFIRMED high): git이 없거나 git repo가 아니어서 미커밋 여부를 못 가리는 경우는
+#   예전엔 통째로 조용히 통과했다 — 완료 게이트가 통보 없이 사라지는 '조용한 강등'. transcript에서 관심
+#   대상(위 ④) 편집이 감지됐는데 git으로 커밋 여부를 확인 못 하면 차단은 하지 않되 그 사실을 systemMessage로
+#   1회 알린다(정상 발화와 동일한 dedup/세션캡 3회, 키만 분리).
 set -uo pipefail
 
 input="$(cat)"
 
 python3 - "$input" <<'PY' 2>/dev/null || exit 0
-import sys, json, os
+import sys, json, os, re
 
 try:
     d = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
@@ -36,7 +43,7 @@ EXTS = (".py",)
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 changed = set()
 
-# 효율(0.8.3): 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 — 미커밋 .py가 하나도 없으면
+# 효율: 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 — 미커밋 .py가 하나도 없으면
 # transcript 전체 파싱을 통째로 건너뛴다(관련 미커밋 0인 흔한 Stop에서 O(transcript) 비용 제거). git 불가면 종전대로 진행(graceful).
 import subprocess
 
@@ -150,16 +157,29 @@ except Exception:
 if not changed:
     sys.exit(0)
 
-# 4) git 미커밋 .py 변경과 교차 — uncommitted는 위(git-first)에서 이미 계산. git 불가면 graceful 통과.
-#    normcase: Windows NTFS는 대소문자 무시라 케이스가 갈리면 교차가 공집합이 되는 거짓음성 — normcase로 케이스폴드(POSIX no-op).
-if not git_ok or uncommitted is None:
-    sys.exit(0)
-changed = {os.path.normcase(os.path.normpath(p)) for p in changed} & uncommitted
+# 4b) 발화 조건 협소화 — 상태전이/테스트 경로만(순수 util·스키마·설정엔 침묵). git-교차보다 먼저 정의해서
+#     아래 A-1(git 불가) 분기에서도 재사용한다.
+# B-1(하네스 자가감사, CONFIRMED high): models.py는 예전엔 파일명만으로 무조건 발화했다 — 순수 컬럼 선언뿐인
+# 선언형 스키마(SQLAlchemy/Pydantic 모델)까지 '상태전이 수정'으로 오판해 매번 넛지했다. 이제 내용에 실제
+# 상태전이 신호(status/state 필드·Status/State 클래스·전이류 메서드·migration op 호출)가 있을 때만 발화한다.
+# 나머지 경로(tests/·alembic/·migrations/·services/·crud/·routers/ 등, main.py·conftest.py·crud.py·
+# service.py·router.py·routes.py)는 이름 자체가 이미 동작/전이를 의미하므로 종전대로 파일명 매칭 유지.
+STATE_TRANSITION_RE = re.compile(
+    r"\w*(?:status|state)\s*[:=]"  # \b 금지: payment_status·order_state 같은 snake_case 접두를 놓친다
+    r"|class\s+\w*(?:Status|State)\b"
+    r"|def\s+\w*(?:transition|advance|finalize|finalise|complete|cancel|approve|reject|activate|deactivate|publish|archive)\w*\s*\("
+    r"|\bop\.(?:add_column|drop_column|alter_column|execute)\b"
+)
 
-if not changed:
-    sys.exit(0)
 
-# 4b) 발화 조건 협소화 — 상태전이/테스트 경로만(순수 util·스키마·설정엔 침묵).
+def _has_state_signal(path):
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            return bool(STATE_TRANSITION_RE.search(f.read()))
+    except Exception:
+        return True  # 못 읽으면 안전 쪽(발화)으로 기운다 — false-negative보다 과발화가 낫다
+
+
 def _is_interesting(p):
     norm = p.replace("\\", "/")
     base_name = os.path.basename(norm)
@@ -168,10 +188,46 @@ def _is_interesting(p):
     for seg in ("/tests/", "/alembic/", "/migrations/", "/services/", "/crud/", "/repositories/", "/routers/", "/endpoints/"):
         if seg in norm:
             return True
-    if base_name in ("main.py", "conftest.py", "models.py", "crud.py", "service.py", "router.py", "routes.py"):
+    if base_name in ("main.py", "conftest.py", "crud.py", "service.py", "router.py", "routes.py"):
         return True
+    if base_name == "models.py":
+        return _has_state_signal(p)
     return False
 
+
+# 4) git 미커밋 .py 변경과 교차 — uncommitted는 위(git-first)에서 이미 계산.
+#    normcase: Windows NTFS는 대소문자 무시라 케이스가 갈리면 교차가 공집합이 되는 거짓음성 — normcase로 케이스폴드(POSIX no-op).
+# A-1(하네스 자가감사, CONFIRMED high): git 불가(비-git 프로젝트·git 미설치)면 예전엔 여기서 조용히 exit(0) —
+# 완료 게이트가 통보 없이 사라지는 '조용한 강등'이었다. transcript로 감지된 편집 중 관심 대상(_is_interesting)이
+# 하나도 없으면 여전히 침묵(과발화 방지) — 있으면 차단 없이 '커밋 여부를 못 가렸다'는 사실만 1회 알린다.
+if not git_ok or uncommitted is None:
+    interesting_ug = {p for p in changed if _is_interesting(p)}
+    if not interesting_ug:
+        sys.exit(0)
+    import hashlib, glob as _glob, tempfile
+    sid = d.get("session_id", "") or "nosession"
+    fs_hash = hashlib.sha1("\n".join(sorted(interesting_ug)).encode()).hexdigest()[:8]
+    sent_dir = os.path.join(tempfile.gettempdir(), f"claude-{getattr(os, 'getuid', lambda: 0)()}")
+    sent = os.path.join(sent_dir, f"backendverify-gitunavail-{sid}-{fs_hash}")
+    try:
+        os.makedirs(sent_dir, exist_ok=True)
+        if os.path.exists(sent):
+            sys.exit(0)
+        if len(_glob.glob(f"{sent_dir}/backendverify-gitunavail-{sid}-*")) >= 3:
+            sys.exit(0)
+        open(sent, "w").close()
+    except Exception:
+        pass
+    msg = (
+        "git 저장소가 아니거나 git을 사용할 수 없어 상태전이/테스트 파일 변경분의 커밋 여부를 판별하지 못했습니다 — "
+        "green이 실제 동작인지 직접 확인하세요."
+    )
+    print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
+    sys.exit(0)
+changed = {os.path.normcase(os.path.normpath(p)) for p in changed} & uncommitted
+
+if not changed:
+    sys.exit(0)
 
 interesting = {p for p in changed if _is_interesting(p)}
 n = len(interesting)
@@ -183,7 +239,7 @@ if n == 0:
 import hashlib, glob as _glob, tempfile
 sid = d.get("session_id", "") or "nosession"
 fs_hash = hashlib.sha1("\n".join(sorted(interesting)).encode()).hexdigest()[:8]
-# Windows 이식성(2026-07-18): os.getuid()는 POSIX 전용이라 Windows Python이면 AttributeError로 훅이 발화 직전
+# Windows 이식성: os.getuid()는 POSIX 전용이라 Windows Python이면 AttributeError로 훅이 발화 직전
 # 죽어 영영 침묵했다(stderr는 2>/dev/null에 은폐). /tmp도 Windows Python에선 C:\tmp로 오해석 →
 # gettempdir()(POSIX=TMPDIR//tmp·Win=%TEMP%) + getuid 폴백으로 교체(POSIX 동작 불변).
 sent_dir = os.path.join(tempfile.gettempdir(), f"claude-{getattr(os, 'getuid', lambda: 0)()}")

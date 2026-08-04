@@ -8,7 +8,7 @@ export const meta = {
 //  survivor   = verdict ≠ 'refuted' 인 finding (verify 실패=error 는 confirmed 아님 → degraded 버킷).
 //  verify 트리거 = verifySeverities(기본 ['critical']) + severity=high 이면서 위험 표면(auth·권한·자금경로·
 //                 상태전이·마이그레이션·시크릿)인 finding. 미트리거 = 'unverified'(정책 skip, 실패 아님).
-//                 일반 high는 메인이 직접 판정한다 — reviewer 호출량 축소(0.9.16).
+//                 일반 high는 메인이 직접 판정한다 — reviewer 호출량 축소.
 //  verify 실패(throw/rate-limit) = 'error' → degraded[]에 격리, counts에 confirmed로 세지 않음, return.degraded=true.
 //  analyze 실패 = 해당 unit은 coveredUnits에서 제외하고 units_analyze_failed[]에 격리(위장 커버리지 금지) → return.degraded=true.
 //  critic 호출 실패(throw) = critic_failed=true(완성도 재점검 미수행) → return.degraded=true.
@@ -43,7 +43,7 @@ const analyzeModel = A.analyzeModel || 'sonnet'
 const verifyModel = A.verifyModel || 'opus'
 const criticModel = A.criticModel || 'opus'
 const maxRounds = Math.max(1, Math.min(4, A.maxRounds || 2))
-// verify 트리거(0.9.16): 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
+// verify 트리거: 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
 // 근거(실측): reviewer(opus·xhigh)가 서브에이전트 세션의 단일 최대 소비처였고, 그 대부분이
 // '일반 high' verify였다. 일반 high는 메인(opus·xhigh, full context)이 직접 판정하는 편이 싸고 정확하다.
 // 위험 표면(auth·권한·자금경로·상태전이·마이그레이션·시크릿)의 high는 틀리면 비싸므로 계속 반증한다.
@@ -53,7 +53,7 @@ const RISK_SURFACE_RE = /auth|인증|권한|permission|rbac|role|token|session|s
 const isRiskSurface = (f) => RISK_SURFACE_RE.test(`${f.title || ''} ${f.where || ''} ${f.category || ''} ${f.impact || ''}`)
 // critical은 무조건 · high는 위험 표면일 때만 · (verifySev에 high를 명시했다면 첫 절이 이미 커버)
 const shouldVerify = (f) => verifySev.includes(f.severity) || (f.severity === 'high' && isRiskSurface(f))
-// critic auto-scale(0.8.3): 소규모 감사(≤2 유닛)엔 critic 기본 off — caller가 opt-out을 기억 안 해도 opus critic 낭비 없음.
+// critic auto-scale: 소규모 감사(≤2 유닛)엔 critic 기본 off — caller가 opt-out을 기억 안 해도 opus critic 낭비 없음.
 // 명시 지정(A.critic)은 항상 존중. 스킬 §0의 '소규모=critic:false' 권고를 워크플로에 baked-in.
 const useCritic = A.critic === undefined ? units0.length > 2 : A.critic !== false
 // batchSize: 한 라운드의 analyze fan-out을 N개 단위씩 끊어 실행(청크 사이 barrier) — 동시
@@ -69,7 +69,7 @@ const reviewerAgent = A.reviewerAgent === undefined ? 'reviewer' : A.reviewerAge
 // verify가 silent no-op(미검증 finding을 그냥 confirmed)으로 무너지지 않게(가짜 green 방지).
 let reviewerFallbacks = 0
 let reviewerFallbackWarned = false
-// 오류 분류(2026-07-18): 예전엔 agentType 실패 시 '무조건' opus 모델로 폴백해, rate-limit/timeout류
+// 오류 분류: 예전엔 agentType 실패 시 '무조건' opus 모델로 폴백해, rate-limit/timeout류
 // 일시적 오류에도 같은 비싼 opus를 즉시 재호출 → rate-limit을 되레 악화시켰다. 일시적 오류는 폴백하지 말고
 // rethrow해 상위(verifyOne/critic)가 DEGRADED로 격리하게 하고, agentType 미등록/미상 오류만 opus로 폴백
 // (verify가 silent no-op으로 무너져 미검증 finding을 confirmed로 흘리는 것 방지). read-only/effort 고정 상실은 폴백의 알려진 대가.
@@ -205,7 +205,7 @@ while (pending.length && round < maxRounds) {
 
   // canonical no-barrier: 단위별로 분석이 끝나는 즉시 그 단위의 verify가 돈다.
   // batchSize로 동시 분석 단위 수를 제한(청크 사이는 barrier) — API rate-limit cascade 회피.
-  // effort:'high' 명시(0.9.0, P1' 2축 배치) — 미지정이면 ultracode 세션의 xhigh를 전 analyze 워커가 상속해
+  // effort:'high' 명시 — 미지정이면 ultracode 세션의 xhigh를 전 analyze 워커가 상속해
   // fan-out 수만큼 사고 비용이 곱해진다. 정형 분석=high로 충분(verify/critic은 reviewer frontmatter가 xhigh 고정 — 그쪽은 안 아낀다).
   const analyzeStage = (u) =>
     agent(`${CTX}\n${u.prompt}`, { label: `analyze:${u.key}`, phase: `Round ${round}`, schema: FINDINGS, model: u.model || analyzeModel, effort: A.analyzeEffort || 'high' })
@@ -285,7 +285,7 @@ const rank = { critical: 0, high: 1, medium: 2, low: 3 }
 confirmed.sort((a, b) => (rank[a.final_severity] ?? 9) - (rank[b.final_severity] ?? 9))
 degraded.sort((a, b) => (rank[a.final_severity] ?? 9) - (rank[b.final_severity] ?? 9))
 
-// verified/unverified 분리(2026-07-18): confirmed[]에는 reviewer가 실제 통과시킨 것(confirmed/adjust)과,
+// verified/unverified 분리: confirmed[]에는 reviewer가 실제 통과시킨 것(confirmed/adjust)과,
 // verifySeverities 미해당이라 애초에 verify를 안 돌린 것(unverified, medium/low 정책 skip)이 섞여 있었다.
 // findings만 보는 소비자가 unverified를 '검증 완료'로 오해하지 않도록 별도 배열로 분리해 노출(findings는 하위호환 union 유지).
 const verifiedFindings = confirmed.filter((f) => f.verify_state === 'confirmed' || f.verify_state === 'adjust')

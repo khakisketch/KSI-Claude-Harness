@@ -129,7 +129,7 @@ def check_one(seg, depth):
                 if exp.startswith("~"):
                     exp = HOME + exp[1:]
                 # POSIX 셸 명령의 경로라 posixpath로 정규화 — os.path.normpath는 Windows에서 '/'를 '\'로 바꿔
-                # `norm == "/"`·`norm.count("/")` 검사가 전부 빗나가 `rm -rf /`가 통과하던 구멍(2026-07-18 자가감사 CONFIRMED).
+                # `norm == "/"`·`norm.count("/")` 검사가 전부 빗나가 `rm -rf /`가 통과하던 구멍.
                 norm = posixpath.normpath(exp) if exp else exp
                 # 루트: '/' 뿐 아니라 '//'·'///'(posixpath.normpath('//')=='//', POSIX 특례로 보존)도 전부 루트로 취급.
                 is_root = norm.startswith("/") and norm.strip("/") == ""
@@ -145,7 +145,7 @@ def check_one(seg, depth):
     if prog == "git" and "push" in args:
         pargs = args[args.index("push"):]
         # short-flag 스택(-fu·-uf·-fq 등)도 f 포함이면 force — git은 -fu를 -f -u로 파싱한다. exact 토큰 매칭만으론
-        # -fu가 새던 갭(2026-07-18 자가감사 confirmed) 봉합: rm/clean과 동일하게 단일-대시 플래그를 문자단위로 전개.
+        # -fu가 새던 갭 봉합: rm/clean과 동일하게 단일-대시 플래그를 문자단위로 전개.
         pshort = "".join(a.lstrip("-") for a in pargs if a.startswith("-") and not a.startswith("--"))
         if ("f" in pshort) or any(a == "--force" for a in pargs):
             block("git push --force(-f·-fu 등 f 포함) — --force-with-lease를 단독으로 쓰거나 사용자가 직접 실행(사용자 승인 사항)")

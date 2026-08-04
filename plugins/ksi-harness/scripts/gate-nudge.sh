@@ -21,7 +21,7 @@ try:
 except Exception:
     sys.exit(0)
 
-# Windows 이식성(2026-07-18): os.getuid()는 POSIX 전용 — Windows Python에선 AttributeError로 훅이 죽어(넛지 무발화)
+# Windows 이식성: os.getuid()는 POSIX 전용 — Windows Python에선 AttributeError로 훅이 죽어(넛지 무발화)
 # /tmp도 C:\tmp로 오해석. gettempdir()+getuid 폴백으로 통일(POSIX 동작 불변).
 def _tmpbase():
     return os.path.join(tempfile.gettempdir(), f"claude-{getattr(os, 'getuid', lambda: 0)()}")
@@ -36,7 +36,7 @@ if re.search(r"deep-interview|착수\s?게이트", prompt):
 # 단독 build-동사('구현해줘'·'만들어줘')는 함수 구현·테스트 작성 같은 소작업에서 오탐이라 매칭하지 않는다
 # (reviewer 반증으로 협소화 — 길이 게이트도 그때 완화: 짧은 정당 트리거 미탐 해소).
 # scaffold·"새/신규+시스템·플로우·플랫폼·모듈"만 안전 확장 추가(FP 없는 kickoff 한정어 동반).
-# 0.8.4 slim: 한정어 없는 `기능 추가/붙이/넣` 브랜치 제거 — "정렬 기능 추가해줘"·"로깅 기능 넣어줘" 같은
+# slim: 한정어 없는 `기능 추가/붙이/넣` 브랜치 제거 — "정렬 기능 추가해줘"·"로깅 기능 넣어줘" 같은
 #   소작업에 오발하던 주범(over-restriction 감사). 새/신규 기능·대형 리팩터·build-verb 브랜치가 진짜 kickoff는 이미 잡는다.
 PAT = re.compile(
     r"(새\s?(기능|프로젝트|화면|페이지|서비스|앱|모듈|시스템|플로우|플랫폼)"

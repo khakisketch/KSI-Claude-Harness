@@ -49,7 +49,7 @@ if npath == os.path.normpath(os.path.join(home, ".claude", "settings.json")):
         pass
 
 # ---------- 시크릿·마이그레이션: 예시/락/노드모듈/훅자신/데이터·바이너리 제외 ----------
-# 효율(0.8.3): 데이터/바이너리 확장자는 시크릿 정규식이 의미 없고 대용량이라 스캔 낭비 — 제외.
+# 효율: 데이터/바이너리 확장자는 시크릿 정규식이 의미 없고 대용량이라 스캔 낭비 — 제외.
 DATA_EXTS = (".csv", ".tsv", ".parquet", ".png", ".jpg", ".jpeg", ".gif", ".webp",
              ".pdf", ".zip", ".gz", ".tar", ".woff", ".woff2", ".ttf", ".ico", ".mp4",
              ".map", ".min.js", ".min.css")
@@ -62,7 +62,7 @@ is_excluded = (
 )
 
 if not is_excluded:
-    # 효율(0.8.3): Edit/MultiEdit는 새로 추가된 텍스트(new_string)만 스캔 — 매 편집 전체(≤1MB) 재읽기 낭비 제거.
+    # 효율: Edit/MultiEdit는 새로 추가된 텍스트(new_string)만 스캔 — 매 편집 전체(≤1MB) 재읽기 낭비 제거.
     # 신규 유입 시크릿/파괴적 DDL을 잡는 목적엔 added text로 충분. Write(전체 파일)만 파일을 읽는다.
     if tool in ("Edit", "MultiEdit") and (new_s or old_s):
         text = new_s
@@ -110,7 +110,7 @@ if not is_excluded:
             if re.search(r"(?i)\bRENAME\s+(TO|COLUMN|TABLE)\b", text):
                 ddl.append("RENAME")
             # NOT NULL(DEFAULT 없음)은 기존 테이블 변경(ALTER)일 때만 위험 — 신규 CREATE TABLE의 NOT NULL은 정상.
-            # 예전엔 CREATE TABLE ... NOT NULL도 파괴적으로 오표기(0.8.3 교정): SET NOT NULL 또는 ALTER TABLE 문맥에서만 발화.
+            # 예전엔 CREATE TABLE ... NOT NULL도 파괴적으로 오표기: SET NOT NULL 또는 ALTER TABLE 문맥에서만 발화.
             if re.search(r"(?i)\bSET\s+NOT\s+NULL\b", text) or (
                 re.search(r"(?i)\bALTER\s+TABLE\b[\s\S]{0,200}\bNOT\s+NULL\b", text)
                 and not re.search(r"(?i)\bDEFAULT\b", text)

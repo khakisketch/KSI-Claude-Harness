@@ -31,15 +31,22 @@ case "$base" in
   *) exit 0 ;;
 esac
 
-# diff-aware(0.8.3): pyproject.toml/package.json은 [tool.*]·scripts·name 등 비-의존성 편집이 대부분인데
+# diff-aware: pyproject.toml/package.json은 [tool.*]·scripts·name 등 비-의존성 편집이 대부분인데
 # 그때도 매번 네트워크 SCA(≤120s)가 돌던 낭비를 교정 — Edit/MultiEdit의 changed text에 의존성 신호가 없으면 스킵.
 # 신호 = dependenc 키워드 · 버전 specifier(==/>=/^N/~N/@N) · **점 버전 토큰(N.N)**. 점 버전을 포함하는 이유(자가감사 confirmed):
 #   exact-pin(npm save-exact "lodash":"4.17.21" · poetry bare django="4.2.0")은 operator가 없어 이전엔 통째로 스킵됐고,
 #   'lockfile 갱신이 잡는다'는 커버리지는 illusory였다(lockfile은 Bash로 재생성 → 이 PostToolUse(Edit) 훅이 발화 안 함).
 #   점 버전 감지로 exact-pin을 직접 잡는다. 대가: X.Y 소수를 담은 일부 config 편집이 보수적으로 RUN(오탐<미탐 우선, 1h dedup이 반복 억제).
-# requirements*.txt(0.9.10)는 TOML/JSON이 아니라 한 줄 = 한 requirement라 신호 판정이 더 단순·정확하다: 각 줄에서
+# requirements*.txt는 TOML/JSON이 아니라 한 줄 = 한 requirement라 신호 판정이 더 단순·정확하다: 각 줄에서
 # '#' 뒤 주석을 잘라내고 남는 코드(패키지명·버전·환경 마커)가 old/new 사이에 동일하면(주석/공백만 바뀜) 스킵.
-# Write(전체)·lockfile(poetry.lock/Pipfile.lock)은 게이트 없이 항상 검사 — 이미 해석된 의존성 스냅샷이라 diff 판단이 무의미.
+# B-2(하네스 자가감사, CONFIRMED high): lockfile(poetry.lock/Pipfile.lock/package-lock.json/yarn.lock/
+# pnpm-lock.yaml)은 예전엔 게이트 없이 Edit 1건마다 항상 최대 120s SCA를 돌렸다. lockfile 전체가 곧 의존성
+# 스냅샷이라 pyproject처럼 '비-의존성 섹션 편집' 같은 흔한 예외는 없지만, 그렇다고 게이트가 무의미하지는
+# 않다 — 같은 Edit이 반복되거나(no-op) MultiEdit 일부 단계처럼 old_string과 new_string이 완전히 동일한
+# 경우까지 매번 네트워크 SCA를 돌릴 이유는 없다. 그래서 lockfile은 requirements*.txt처럼 '주석만 다름' 같은
+# 느슨한 정규화 없이 **완전 바이트 동일**일 때만 스킵한다 — 조금이라도 다르면(단 1바이트라도) 무조건 검사
+# (false-negative 금지, 판단이 애매하면 검사). Write·MultiEdit(old_string/new_string 자체가 없음)은 비교
+# 불가이므로 종전처럼 항상 검사(safe-side 기본값 유지).
 case "$base" in
   pyproject.toml|package.json)
     dep_touched="$(printf '%s' "$input" | python3 -c '
@@ -75,6 +82,20 @@ def norm(s):
             lines.append(code)
     return lines
 print("0" if norm(old) == norm(new) else "1")
+' 2>/dev/null)"
+    [ "${dep_touched:-1}" = "0" ] && exit 0 ;;
+  poetry.lock|Pipfile.lock|package-lock.json|yarn.lock|pnpm-lock.yaml)
+    dep_touched="$(printf '%s' "$input" | python3 -c '
+import sys, json
+try:
+    ti = (json.load(sys.stdin).get("tool_input") or {})
+except Exception:
+    print("1"); sys.exit(0)
+old = ti.get("old_string")
+new = ti.get("new_string")
+if old is None and new is None:
+    print("1"); sys.exit(0)  # Write/MultiEdit(old/new 비교 불가) → 항상 검사(safe-side)
+print("0" if old == new else "1")  # 완전 동일할 때만 스킵 — 느슨한 정규화 없음(false-negative 금지)
 ' 2>/dev/null)"
     [ "${dep_touched:-1}" = "0" ] && exit 0 ;;
 esac
@@ -123,7 +144,7 @@ if [ "$eco" = py ]; then
     *) pymode=reqfile ;;
   esac
 
-  # 하드닝: 종전 `out="$(cmd|tail)"; rc=${PIPESTATUS[0]}`는 이 스크립트의 `set -o pipefail`(라인 7)
+  # 하드닝(확장): 종전 `out="$(cmd|tail)"; rc=${PIPESTATUS[0]}`는 이 스크립트의 `set -o pipefail`(라인 7)
   # 덕에 실제로는 마지막 명령의 rc를 정확히 잡고 있었다(pipefail이면 파이프라인 exit=우측 최우선 비-0 → 대입문 exit로 전파,
   # 이 전파는 poetry export/pipenv requirements를 pip-audit -r /dev/stdin으로 파이프하는 아래 분기에도 동일하게 적용된다).
   # tail 없이 rc를 먼저 잡고 자르면 pipefail 유무와 무관하게 정확하고, PIPESTATUS(bashism)도 제거돼 이식성이 오른다.

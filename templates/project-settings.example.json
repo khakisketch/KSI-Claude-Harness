@@ -5,7 +5,7 @@
     "ksi-tools": {
       "source": {
         "source": "github",
-        "repo": "KhakiSkech/ksi-claude-harness"
+        "repo": "khakisketch/KSI-Claude-Harness"
       }
     }
   },

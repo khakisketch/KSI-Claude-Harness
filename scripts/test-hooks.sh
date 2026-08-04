@@ -14,7 +14,7 @@ failt() { echo "FAIL  $1"; fail=1; }
 
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
-# Windows 이식성(2026-07-18): 훅의 python은 native Windows 인터프리터라 JSON stdin으로 넘어온 MSYS 경로
+# Windows 이식성: 훅의 python은 native Windows 인터프리터라 JSON stdin으로 넘어온 MSYS 경로
 # (/tmp/tmp.XXX)를 os.path로 해석 못 해 파일을 못 찾고 조용히 통과했다(테스트만의 거짓실패 — 실훅은 native 경로를 받음).
 # JSON에 박는 경로만 native(cygpath -m = forward-slash, JSON 이스케이프 불필요 + Windows python 해석 가능)로 변환하고,
 # bash 파일 조작은 계속 $T(MSYS)를 쓴다. POSIX(cygpath 부재)에선 TW=T로 무변화.
@@ -113,7 +113,7 @@ ucver() { printf '{"name":"ksi-harness","version":"%s"}\n' "$1" > "$T/ucroot/.cl
 ucrun() { rm -f "$UCSENT"; CLAUDE_PLUGIN_ROOT="$T/ucroot" bash "$HOOKS/update-check.sh" 2>/dev/null; }
 if [ -f "$T/ucroot/.claude-plugin/plugin.json" ]; then
   # 주의: json.dumps가 한글을 \uXXXX로 이스케이프하므로 raw 한글이 아니라 ASCII 키(systemMessage)로 매칭한다.
-  # 신선 clone 직후 첫 ls-remote가 Windows에서 4s timeout을 드물게 초과(타이밍 flake, 2026-07-18 실측) — 1회 재시도
+  # 신선 clone 직후 첫 ls-remote가 Windows에서 4s timeout을 드물게 초과(타이밍 flake, 실측) — 1회 재시도
   ucver 0.1.0; ucout="$(ucrun)"; case "$ucout" in *systemMessage*) ;; *) ucout="$(ucrun)" ;; esac
   case "$ucout" in *systemMessage*) pass "update-check.sh — 뒤처짐 → 알림" ;; *) failt "update-check.sh — 뒤처짐인데 침묵" ;; esac
   ucver 0.2.0; out="$(ucrun)"; [ -z "$out" ] && pass "update-check.sh — 동일 → silent" || failt "update-check.sh — 동일인데 발화"
@@ -160,7 +160,7 @@ python3 "$KG" --dir "$TW/gs-ok" register --id G1 --title work >/dev/null 2>&1
 python3 "$KG" --dir "$TW/gs-ok" start --id G1 >/dev/null 2>&1
 case "$(gs "$TW/gs-ok")" in *additionalContext*) pass "goal-status.sh — 미완 goal → 넛지" ;; *) failt "goal-status.sh — 미완 goal인데 침묵" ;; esac
 
-echo "== 강도 스위치 제거(0.9.13): KSI_HOOKS 는 더 이상 아무 것도 바꾸지 않는다 =="
+echo "== 강도 스위치 제거: KSI_HOOKS 는 더 이상 아무 것도 바꾸지 않는다 =="
 # 실사용 0회로 확인돼 제거했다(bashrc·settings·프로젝트·히스토리 어디에도 설정된 적 없음).
 # 차단하는 훅이 사라진 뒤로는 "관문 해제"라는 용도 자체가 없어졌고, 남은 건 짧은 알림뿐이라 끌 이유가 없다.
 # 회귀 가드: 옛 값이 환경에 남아 있어도 동작이 갈리지 않아야 한다(조용한 침묵 = 최악의 실패 모드).
@@ -192,7 +192,7 @@ pdg "git push --force-with-lease origin main" | bash "$HOOKS/pre-destructive-gua
 pdg "git reset --hard" | bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — reset --hard → block(미커밋 소실)" || failt "reset --hard 미차단"
 pdg "git reset --hard" | KSI_HOOKS=warn bash "$HOOKS/pre-destructive-guard.sh" >/dev/null 2>&1; [ $? -eq 2 ] && pass "pre-destructive — reset --hard → warn 값이어도 block" || failt "reset --hard 가 옛 스위치로 우회됨"
 
-echo "== SCA diff-aware(0.8.3) =="
+echo "== SCA diff-aware =="
 scaclean; mkdir -p "$T/scad"; printf '[tool.ruff]\nline-length = 100\n' > "$T/scad/pyproject.toml"
 out="$(printf '{"tool_input":{"file_path":"%s","old_string":"line-length = 88","new_string":"line-length = 100"}}' "$TW/scad/pyproject.toml" | bash "$HOOKS/sca-check.sh" 2>&1)"
 [ -z "$out" ] && pass "sca — pyproject 비-의존성 편집(tool.ruff) → skip" || failt "sca — 비-의존성인데 실행: ${out:0:40}"
@@ -208,7 +208,7 @@ print("1" if DEP.search(sys.argv[1]) else "0")
 [ "$(detect 'line-length = 100')" = "0" ] && pass "sca dep-detect — 정수 config(tool.ruff) → 여전히 skip" || failt "sca — 정수 config 오탐"
 [ "$(detect 'name = mypackage')" = "0" ] && pass "sca dep-detect — 비버전 편집 → skip" || failt "sca — 비버전 오탐"
 
-echo "== secret-scan CREATE TABLE NOT NULL 오표기 교정(0.8.3) =="
+echo "== secret-scan CREATE TABLE NOT NULL 오표기 교정 =="
 rm -f "${TMPDIR:-/tmp}/claude-secret-scan.last" "${TEMP:-/tmp}/claude-secret-scan.last" 2>/dev/null   # ${TEMP:-} — set -u에서 TEMP 미설정(비-Windows) 시 unbound 방지
 mkdir -p "$T/mig/migrations"
 printf 'CREATE TABLE users (id INT NOT NULL, name TEXT NOT NULL);\n' > "$T/mig/migrations/001c.sql"
@@ -222,25 +222,25 @@ case "$(printf '{"tool_input":{"file_path":"%s"}}' "$TW/mig/migrations/002a.sql"
   *) failt "secret-scan — ALTER SET NOT NULL인데 미발화" ;;
 esac
 
-echo "== dead-config(0.8.3): bypassPermissions 단독은 더는 발화 안 함 =="
+echo "== dead-config: bypassPermissions 단독은 더는 발화 안 함 =="
 mkdir -p "$T/dcg-bypass/.claude"
 printf '{"permissions":{"defaultMode":"bypassPermissions"}}' > "$T/dcg-bypass/.claude/settings.json"
 out="$(dcg "$TW/dcg-bypass")"; [ -z "$out" ] && pass "dead-config — bypassPermissions 단독 → silent(사용자 선호 존중)" || failt "dead-config — bypass 단독인데 발화"
 
-echo "== gate-nudge slim(0.8.4): 한정어 없는 소작업 미발화 =="
+echo "== gate-nudge slim: 한정어 없는 소작업 미발화 =="
 gn() { printf '{"prompt":"%s","session_id":"%s"}' "$1" "$2" | bash "$HOOKS/gate-nudge.sh"; }
 out="$(gn "정렬 기능 추가해줘" "gn1-$$")"; [ -z "$out" ] && pass "gate-nudge — 정렬 기능 추가(소작업) → 미발화(slim)" || failt "gate-nudge — 소작업 오발"
 out="$(gn "로깅 기능 넣어줘" "gn2-$$")"; [ -z "$out" ] && pass "gate-nudge — 로깅 기능 넣어줘 → 미발화" || failt "gate-nudge — 소작업 오발2"
 case "$(gn "새 기능 만들어줘 대시보드 화면" "gn3-$$")" in *additionalContext*) pass "gate-nudge — 새 기능 만들어줘 → 여전히 발화" ;; *) failt "gate-nudge — 진짜 kickoff 미발화(과협소)" ;; esac
 case "$(gn "대형 리팩터 하자" "gn4-$$")" in *additionalContext*) pass "gate-nudge — 대형 리팩터 → 여전히 발화" ;; *) failt "gate-nudge — 대형 리팩터 미발화" ;; esac
 
-echo "== goal-status slim(0.8.4): Path B(docs 넛지) 제거 확인 =="
+echo "== goal-status slim: Path B(docs 넛지) 제거 확인 =="
 gsb() { printf '{"cwd":"%s"}' "$1" | CLAUDE_PLUGIN_ROOT="$PR" bash "$HOOKS/goal-status.sh"; }
 mkdir -p "$T/gsb/docs"; printf '# roadmap\n' > "$T/gsb/docs/ROADMAP.md"; printf '# todo\n' > "$T/gsb/docs/TODO.md"
 out="$(gsb "$TW/gsb")"; [ -z "$out" ] && pass "goal-status — docs/에 ROADMAP·TODO 있어도 .ksi 없으면 silent(Path B 제거)" || failt "goal-status — Path B 여전히 발화"
 
 echo "== 훅이 python3 에 실제로 넘기는 코드가 컴파일되는가 (조용한 죽음 방지) =="
-# 실측 사고(2026-08-03): secret-scan.sh 주석에 아포스트로피가 들어가 `python3 -c '...'` 셸 문자열이
+# 실측 사고: secret-scan.sh 주석에 아포스트로피가 들어가 `python3 -c '...'` 셸 문자열이
 # 조기 종료됐다. bash -n 은 통과하고, stderr 는 2>/dev/null 에 먹히고, 훅은 exit 0 으로 조용히 침묵 —
 # 하드코딩 시크릿·파괴적 DDL 경고가 몇 주간 죽어 있었는데 아무 신호도 없었다.
 # 여기서는 python3 를 shim 으로 가로채 '셸이 실제로 넘긴 코드'를 받아 py_compile 한다.

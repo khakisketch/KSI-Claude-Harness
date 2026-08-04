@@ -8,11 +8,11 @@ disallowedTools: Agent, Artifact, ExitPlanMode, Edit, Write, NotebookEdit
 
 하네스 자가감사 수정: 특정 버전부터 빌트인 Explore가 항상 Haiku가 아니라 메인 대화 모델을 상속(API에선 Opus 상한)하도록 바뀌었다. 이 커스텀 정의는 그 변경 전 동작(Explore=Haiku, 저비용 탐색)을 명시적으로 복원한다 — description·tools 구성은 빌트인과 동일하게 유지하고 model만 haiku로 고정.
 
-확정된 트레이드오프(2026-08-04 공식 문서 확인): **이 커스텀 override는 CLAUDE.md와 git status를 로드한다.**
+확정된 트레이드오프(공식 문서 확인): **이 커스텀 override는 CLAUDE.md와 git status를 로드한다.**
 문서 원문 — "Explore and Plan are the only subagents that omit CLAUDE.md and git status. There is no frontmatter
 field or per-agent setting to change which agents skip them." 즉 스킵은 *빌트인* Explore/Plan 전용이고,
 사용자 정의 Explore는 다른 커스텀 서브에이전트와 똑같이 둘 다 싣는다.
-→ 우리는 **CLAUDE.md 로딩 비용을 감수하고 haiku 단가를 택한 것**이다. 빌트인은 v2.1.198부터 메인 모델을
+→ 우리는 **CLAUDE.md 로딩 비용을 감수하고 haiku 단가를 택한 것**이다. 빌트인은 특정 버전부터 메인 모델을
 상속하고(Claude API에서는 Opus 상한) 그게 훨씬 비싸므로, CLAUDE.md가 지금처럼 짧게 유지되는 한 이 교환은 이득이다.
 CLAUDE.md가 다시 비대해지면 이 계산이 뒤집힐 수 있으니 그때 재검토할 것.
 
