@@ -4,9 +4,10 @@
 신설(nextgen 로드맵 1순위): 하네스가 자기 개입의 효과·비용·정확성을 스스로 재게 한다.
 기존 harness-cost-report.sh(tier 분포 heuristic)를 흡수·확장 — 이 스크립트가 상위집합이라 cost-report는 폐기 대상.
 
-두 서브커맨드:
+세 서브커맨드:
   report [--window N] [--project SUBSTR]  — transcript telemetry 롤업(발화·비용·마라톤·denial)
   smoke                                    — 훅·ksi-goals의 correctness 회귀(각 훅 exit 0·JSON 유효·전이가드 여전히 거부)
+  consistency                              — 문서↔기계 정합(frontmatter vs 산문·죽은 /스킬 참조·memory 죽은 절 포인터·dist 드리프트)
 
 원칙(하네스 doctrine 반영):
 - 측정은 목적이 아니라 cull/교정의 계기(GC 엔진). occurrence보다 efficacy를 재려 하되, heeded-rate는 정규식 heuristic이라 노이즈원 — '값싼 워커 불신'을 산출숫자에도 적용해 approximate로 명시(관측용, cull 근거는 robust 신호[fire-count·exit-code]로 한정).
@@ -19,6 +20,7 @@ import glob
 import json
 import os
 import random
+import re
 import shutil
 import string
 import subprocess
@@ -485,7 +487,7 @@ def cmd_smoke(args):
             return subprocess.run([sys.executable, goals, "--dir", td, *a],
                                   capture_output=True, text=True, timeout=20)
         g("init", "--project", "smoke")
-        g("register", "--id", "S1", "--title", "t", "--criteria", "c")
+        g("register", "--id", "S1", "--kind", "product", "--title", "t", "--criteria", "c")
         g("start", "--id", "S1")
         g("attempt", "--id", "S1", "--evidence", "실제 산출물 x:1")
         g("gate", "--id", "S1", "--verdict", "pass", "--reviewer", "opus", "--evidence-ref", "x:1")
@@ -499,7 +501,7 @@ def cmd_smoke(args):
         else:
             fails.append("ksi-goals: completed→abandon이 허용됨 — 전이가드 붕괴(가짜완료 우회 가능)")
         # 증거 없는 pass 거부도 확인
-        g("register", "--id", "S2", "--title", "t2")
+        g("register", "--id", "S2", "--kind", "product", "--title", "t2")
         g("start", "--id", "S2")
         r2 = g("gate", "--id", "S2", "--verdict", "pass", "--reviewer", "opus", "--evidence-ref", "y:1")
         if not goals:
@@ -508,6 +510,99 @@ def cmd_smoke(args):
             ok.append("ksi-goals[증거없는 pass 거부]")
         else:
             fails.append("ksi-goals: 증거(attempt) 없이 pass 허용됨 — 증거게이트 붕괴")
+        # kind 미지정 register는 거부돼야(분류 강제 — 2026-08 kind/verification)
+        r3 = g("register", "--id", "S3", "--title", "kind 없는 시도")
+        if not goals:
+            pass  # 미설치 — 전이가드 미검증에 이미 포함
+        elif r3.returncode != 0:
+            ok.append("ksi-goals[kind 없는 register 거부]")
+        else:
+            fails.append("ksi-goals: --kind 없이 register가 허용됨 — kind 분류 강제 붕괴")
+        # hardening kind는 light 기본이라 --reviewer 없이도 pass 통과해야(강도 완화)
+        g("register", "--id", "S4", "--kind", "hardening", "--title", "린트 정리", "--criteria", "c")
+        g("start", "--id", "S4")
+        g("attempt", "--id", "S4", "--evidence", "ruff check 통과 로그 x:1")
+        r4 = g("gate", "--id", "S4", "--verdict", "pass", "--evidence-ref", "x:1")
+        if not goals:
+            pass
+        elif r4.returncode == 0 and "completed" in (r4.stdout + r4.stderr):
+            ok.append("ksi-goals[hardening(light) — reviewer 없이 pass 통과]")
+        else:
+            fails.append(f"ksi-goals: hardening(light) pass가 reviewer 없이도 거부됨 — 게이트 완화 회귀 "
+                         f"rc={r4.returncode} out={r4.stdout!r} err={r4.stderr!r}")
+        # 민감 키워드(결제)는 --verification light 지정해도 strict로 기계 승격 — reviewer 없는 pass는 거부돼야
+        g("register", "--id", "S5", "--kind", "product", "--title", "결제 정산 로직 수정",
+          "--criteria", "c", "--verification", "light")
+        g("start", "--id", "S5")
+        g("attempt", "--id", "S5", "--evidence", "정산 테스트 통과 x:1")
+        r5 = g("gate", "--id", "S5", "--verdict", "pass", "--evidence-ref", "x:1")
+        if not goals:
+            pass
+        elif r5.returncode != 0:
+            ok.append("ksi-goals[민감키워드 strict 기계승격 — reviewer 없는 pass 거부]")
+        else:
+            fails.append("ksi-goals: '결제' 제목이 strict로 승격 안 됨(또는 reviewer 없이 pass 통과) — 기계 승격 붕괴")
+        # set-kind: hardening→product 재분류가 counts_by_kind에 반영되는지(S4는 위에서 이미 completed —
+        # set-kind가 완료 상태에서도 허용되는지까지 같이 확인)
+        counts_by_kind = {}
+        if goals:
+            g("set-kind", "--id", "S4", "--kind", "product")
+            j = g("status", "--json")
+            try:
+                counts_by_kind = json.loads(j.stdout).get("counts_by_kind", {})
+            except Exception:
+                counts_by_kind = {}
+        if not goals:
+            pass
+        elif counts_by_kind.get("hardening", 0) == 0 and counts_by_kind.get("product", 0) >= 1:
+            ok.append("ksi-goals[set-kind hardening→product가 counts_by_kind에 반영]")
+        else:
+            fails.append(f"ksi-goals: set-kind 후 counts_by_kind가 안 바뀜 — {counts_by_kind}")
+        # set-kind --verification light를 민감키워드(결제) goal에 줘도 실효값은 strict 유지(하향 불가 회귀).
+        # in_progress 상태의 새 goal로 확인 — actionable 배열에서 바로 조회하려고(completed는 배열 밖).
+        actionable6 = []
+        if goals:
+            g("register", "--id", "S6", "--kind", "hardening", "--title", "결제 정산 재작업", "--criteria", "c")
+            g("start", "--id", "S6")
+            g("set-kind", "--id", "S6", "--kind", "product", "--verification", "light")
+            j6 = g("status", "--json")
+            try:
+                actionable6 = json.loads(j6.stdout).get("actionable", [])
+            except Exception:
+                actionable6 = []
+        s6_verif = next((it.get("verification") for it in actionable6 if it.get("id") == "S6"), None)
+        if not goals:
+            pass
+        elif s6_verif == "strict":
+            ok.append("ksi-goals[set-kind --verification light가 민감키워드 실효 strict를 못 내림]")
+        else:
+            fails.append(f"ksi-goals: set-kind --verification light 후 민감키워드 goal 실효 verification이 "
+                         f"strict가 아님(={s6_verif}) — 하향 방지 붕괴")
+
+    # consistency 검사기 자체의 회귀 — 드리프트를 심은 픽스처에서 3종이 실제로 발화하는지.
+    # "불일치 0건" 보고는 정합이 좋아서일 수도, 검사기가 조용히 죽어서일 수도 있다(green≠작동).
+    with tempfile.TemporaryDirectory() as fx:
+        os.makedirs(os.path.join(fx, "agents"))
+        os.makedirs(os.path.join(fx, "skills", "fake"))
+        os.makedirs(os.path.join(fx, "projects", "-home-ksi", "memory"))
+        _w = lambda p, s: open(os.path.join(fx, p), "w", encoding="utf-8").write(s)  # noqa: E731
+        _w("agents/reviewer.md", "---\nname: reviewer\nmodel: opus\neffort: high\n---\n본문\n")
+        _w("CLAUDE.md", "# 전역 지침\n## 실존하는 절\n내용\n")
+        _w("skills/fake/SKILL.md",
+           "---\nname: fake\ndescription: 픽스처\n---\n검증은 `reviewer`(opus·xhigh)가 한다.\n앱은 `/run`·`/nosuchskill`로 띄운다.\n")
+        _w("projects/-home-ksi/memory/m.md",
+           "---\nname: m\n---\n정의는 CLAUDE.md `## 사라진 절`이 SSOT다.\n프로젝트 `CLAUDE.md:118`의 `## 도메인 불변식`은 오탐이면 안 된다.\n")
+        env = dict(os.environ, KSI_SELFCHECK_DIR=fx)
+        rc = subprocess.run([sys.executable, os.path.abspath(__file__), "consistency"],
+                            capture_output=True, text=True, env=env, timeout=60)
+        hits = [ln for ln in rc.stdout.splitlines() if ln.startswith("  ✗ ")]
+        want = ("effort", "nosuchskill", "사라진 절")
+        missed = [w for w in want if not any(w in h for h in hits)]
+        if rc.returncode == 1 and not missed and not any("도메인 불변식" in h for h in hits):
+            ok.append("consistency[드리프트 3종 탐지 + 프로젝트-CLAUDE.md 인용 오탐 없음]")
+        else:
+            fails.append(f"consistency: 픽스처 드리프트를 못 잡음(미탐 {missed or '없음'} · exit={rc.returncode}) "
+                         f"— 검사기가 조용히 죽으면 '불일치 0건'이 거짓 초록불이 된다")
 
     print(f"# 하네스 correctness 스모크 — {len(ok)} pass / {len(fails)} FAIL")
     for x in ok:
@@ -521,6 +616,144 @@ def cmd_smoke(args):
     return 0
 
 
+# ── consistency: 문서가 약속한 것과 기계가 주는 것이 갈렸는지 ───────────────────────────────
+# 왜 있나: 감사 여러 회가 같은 클래스를 반복 발견했다 — SSOT 포인터를 붙여 복제는 지웠는데,
+# 가리키는 대상이 나중에 사라지거나 값이 바뀌어도 아무도 안 잡았다. 실측 사례: reviewer frontmatter는
+# effort:high인데 스킬·워크플로 여러 곳이 "opus·xhigh"로 안내 · memory가 CLAUDE.md의 없어진 절을 SSOT로 지목 ·
+# ui-audit이 존재하지 않는 슬래시 명령으로 앱을 띄우라고 지시. 전부 사람이 읽어야만 보이던 것들이라 기계검사로 옮긴다.
+# KSI_SELFCHECK_DIR: 검사기 자체의 회귀시험용 override. 이게 없으면 "0건 보고"가 정상인지 검사기가
+# 고장난 건지 구분할 수 없다(green≠작동) — 픽스처 트리에 드리프트를 심어 3종이 실제로 발화하는지 잰다.
+CLAUDE_DIR = os.environ.get("KSI_SELFCHECK_DIR") or os.path.join(HOME, ".claude")
+# 하네스 소유가 아닌 슬래시 명령(빌트인·플러그인) — 죽은 참조 판정에서 제외한다.
+KNOWN_EXTERNAL_CMDS = {
+    "clear", "compact", "config", "help", "init", "plan", "run", "review", "code-review", "ultrareview",
+    "security-review", "simplify", "loop", "schedule", "plugin", "agents", "model", "resume", "memory",
+    "deep-research", "brainstorm", "frontend-design", "dataviz", "artifact-design", "claude-api",
+    "update-config", "keybindings-help", "fewer-permission-prompts", "claude-in-chrome", "ksi-setup",
+    "effort", "context", "cost", "usage", "status", "doctor", "login", "logout", "export", "add-dir",
+    "bug", "ide", "mcp", "permissions", "hooks", "todos", "rewind", "output-style", "vim", "workflows",
+}
+# live↔dist 드리프트 확인용. 이 상수는 하네스를 유지보수하는 머신에만 실존한다 — 그 외 설치에서는
+# os.path.isdir()이 False라 이 검사가 조용히 스킵된다(도구 부재를 FAIL로 읽지 않는 기존 패턴과 동형).
+DIST_PLUGIN = os.path.join(HOME, "Desktop", "KSI-Projects", "ksi-claude-harness", "plugins", "ksi-harness")
+
+
+def _frontmatter(path):
+    try:
+        t = open(path, encoding="utf-8").read()
+    except OSError:
+        return {}, ""
+    m = re.match(r"---\n(.*?)\n---\n", t, re.S)
+    if not m:
+        return {}, t
+    fm = {}
+    for line in m.group(1).split("\n"):
+        mm = re.match(r"^([a-zA-Z_-]+):\s*(.*)$", line)
+        if mm:
+            fm[mm.group(1)] = mm.group(2).strip()
+    return fm, t
+
+
+def _doc_files():
+    """산문 SSOT 후보 — 항상 로드되거나 에이전트가 읽는 것들."""
+    out = [os.path.join(CLAUDE_DIR, "CLAUDE.md")]
+    for pat in ("skills/*/SKILL.md", "agents/*.md", "workflows/*.js", "output-styles/*.md",
+                "templates/*.md", "projects/-home-ksi/memory/*.md"):
+        out += sorted(glob.glob(os.path.join(CLAUDE_DIR, pat)))
+    return [p for p in out if os.path.isfile(p)]
+
+
+def cmd_consistency(args):
+    findings = []
+
+    # 1) 에이전트 frontmatter(기계가 실제로 주는 값) vs 산문이 안내하는 model·effort
+    agents = {}
+    for p in sorted(glob.glob(os.path.join(CLAUDE_DIR, "agents", "*.md"))):
+        fm, _ = _frontmatter(p)
+        name = fm.get("name") or os.path.splitext(os.path.basename(p))[0]
+        agents[name] = (fm.get("model"), fm.get("effort"))
+    efforts = ("xhigh", "high", "medium", "low")
+    for path in _doc_files():
+        body = open(path, encoding="utf-8").read()
+        for name, (model, effort) in agents.items():
+            if not model:
+                continue
+            # `reviewer(opus·xhigh…` / `reviewer 서브에이전트(opus·high…` 같은 안내 문자열을 잡는다.
+            for m in re.finditer(re.escape(name) + r"[^(\n]{0,20}\((opus|sonnet|haiku)(?:·(\w+))?", body):
+                said_model, said_effort = m.group(1), m.group(2)
+                if said_model != model:
+                    findings.append(f"{_rel(path)}: {name}을 '{said_model}'로 안내 — frontmatter는 '{model}'")
+                if said_effort in efforts and effort and said_effort != effort:
+                    findings.append(f"{_rel(path)}: {name} effort를 '{said_effort}'로 안내 — frontmatter는 '{effort}'")
+
+    # 2) 죽은 /스킬 참조 — 설치된 스킬도 빌트인도 아닌 것
+    installed = {os.path.basename(os.path.dirname(p))
+                 for p in glob.glob(os.path.join(CLAUDE_DIR, "skills", "*", "SKILL.md"))}
+    for path in _doc_files():
+        body = open(path, encoding="utf-8").read()
+        for m in re.finditer(r"`/([a-z][a-z0-9-]{2,})`", body):
+            cmd = m.group(1)
+            if cmd not in installed and cmd not in KNOWN_EXTERNAL_CMDS:
+                findings.append(f"{_rel(path)}: `/{cmd}` 참조 — 설치된 스킬도 알려진 빌트인도 아님")
+
+    # 3) memory의 **SSOT 포인터**가 가리키는 전역 CLAUDE.md 절이 실존하는지.
+    #    SSOT 표기를 요구하는 이유(오탐 억제): 메모리에는 프로젝트 CLAUDE.md의 절(`## 도메인 불변식` 등)이나
+    #    과거 작업 서술("`## 목적` 절 신설")도 등장한다 — 전역 파일에 없는 게 정상이다. 우리가 잡으려는 건
+    #    "여기 복제하지 않는다, 저기가 SSOT다"라고 위임해 놓고 대상이 사라진 경우뿐이다.
+    #    `CLAUDE.md:118` 같은 파일:라인 인용도 프로젝트 파일 지목이라 제외한다.
+    claude_md = os.path.join(CLAUDE_DIR, "CLAUDE.md")
+    sections = set()
+    if os.path.isfile(claude_md):
+        for line in open(claude_md, encoding="utf-8"):
+            if line.startswith("#"):
+                sections.add(line.lstrip("#").strip())
+
+    def _section_exists(want):
+        return any(s == want or s.startswith(want) or want.startswith(s) for s in sections)
+
+    for path in sorted(glob.glob(os.path.join(CLAUDE_DIR, "projects", "-home-ksi", "memory", "*.md"))):
+        body = open(path, encoding="utf-8").read()
+        for m in re.finditer(r"CLAUDE\.md(?!:\d)[^\n]{0,8}?['`\"]##\s*([^'`\"\n]+)['`\"][^\n]{0,12}?SSOT", body):
+            want = m.group(1).strip()
+            if not _section_exists(want):
+                findings.append(f"{_rel(path)}: CLAUDE.md '## {want}' 절을 SSOT로 지목 — 그 절이 없다")
+
+    # 4) live ↔ dist 드리프트(배포본이 뒤처지면 다른 머신이 구버전 계약으로 돈다)
+    dist_note = None
+    if os.path.isdir(DIST_PLUGIN):
+        pairs = []
+        for sub in ("agents/*.md", "skills/*/SKILL.md", "workflows/*.js"):
+            for d in glob.glob(os.path.join(DIST_PLUGIN, sub)):
+                pairs.append((d, os.path.join(CLAUDE_DIR, os.path.relpath(d, DIST_PLUGIN))))
+        for d in glob.glob(os.path.join(DIST_PLUGIN, "scripts", "*")):
+            b = os.path.basename(d)
+            live = os.path.join(CLAUDE_DIR, "hooks", b)
+            if not os.path.isfile(live):
+                live = os.path.join(CLAUDE_DIR, "scripts", b)
+            pairs.append((d, live))
+        diff = [os.path.relpath(di, DIST_PLUGIN) for di, li in pairs
+                if os.path.isfile(li) and open(di, "rb").read() != open(li, "rb").read()]
+        if diff:
+            dist_note = (f"live↔dist 내용 상이 {len(diff)}개 — 도메인 중립화로 의도된 차이가 섞여 있으니 "
+                         f"cull이 아니라 확인 대상: {', '.join(sorted(diff)[:8])}"
+                         + (" …" if len(diff) > 8 else ""))
+
+    print("# 하네스 consistency — 문서↔기계 정합")
+    if findings:
+        print(f"\n## 불일치 {len(findings)}건 (문서가 약속한 것과 기계가 주는 것이 다름)")
+        for f in dict.fromkeys(findings):
+            print(f"  ✗ {f}")
+    else:
+        print("\n불일치 없음 — frontmatter·슬래시 참조·memory 포인터 모두 실물과 일치.")
+    if dist_note:
+        print(f"\n## 배포본\n  ⚠ {dist_note}")
+    return 1 if findings else 0
+
+
+def _rel(p):
+    return os.path.relpath(p, CLAUDE_DIR)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="harness-selfcheck")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -530,6 +763,8 @@ def main():
     rp.set_defaults(func=cmd_report)
     sp = sub.add_parser("smoke", help="훅·게이트 correctness 회귀")
     sp.set_defaults(func=lambda a: sys.exit(cmd_smoke(a)))
+    cp = sub.add_parser("consistency", help="문서↔기계 정합(frontmatter·슬래시참조·memory포인터·dist드리프트)")
+    cp.set_defaults(func=lambda a: sys.exit(cmd_consistency(a)))
     args = ap.parse_args()
     if getattr(args, "window", None) == 0:
         args.window = None

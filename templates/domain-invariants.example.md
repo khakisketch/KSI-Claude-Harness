@@ -56,7 +56,7 @@ happy-path green은 어뷰징 부재를 증명하지 못한다(과녁 부재, �
 **전파 규율(codebase-audit '어뷰징·무결성' 렌즈가 confirmed 어뷰징 finding을 낼 때):**
 1. 그 finding의 클래스를 위 맵에서 찾아 **형제 프로젝트 목록**을 얻는다(자기 fleet 기준으로 구체화).
 2. 각 형제의 `.ksi` 원장에 **같은 음성 케이스를 proposed goal로 register**한다(있으면):
-   `ksi-goals.py --dir <형제> register --id <FLEET-...> --title "<원 프로젝트>에서 발견한 <클래스> 케이스 — 여기도 점검" --criteria "self/cross/replay/state-change-after 중 해당 음성테스트 통과"`
+   `ksi-goals.py --dir <형제> register --id <FLEET-...> --kind hardening --title "<원 프로젝트>에서 발견한 <클래스> 케이스 — 여기도 점검" --criteria "self/cross/replay/state-change-after 중 해당 음성테스트 통과"`
 3. 형제에 원장이 없으면 그 프로젝트 감사 시 이 클래스를 우선 렌즈로 표시(전파는 원장이 있을 때만 자동, 없으면 다음 감사의 조준점).
 4. 원본 finding의 verify(reviewer)를 통과한 것만 전파(환각을 형제로 퍼뜨리지 않는다 — 값싼 워커 불신).
 

@@ -54,12 +54,13 @@ severity로 정렬한 findings + 구체 권고. 반복 결함은 단위별 땜�
 
 ## 6.5 산출물 durable화 (dated md 생성 금지)
 `.ksi/`가 있으면 감사 종점은 dated 스냅샷 md가 아니라 **원장/두뇌 upsert**다. 둘 다 `python3 ~/.claude/scripts/ksi-goals.py --dir <proj>`:
-- **findings → 원장:** survivor finding(verify 통과)을 `register --id <G###> --title <finding> --criteria <완료기준>`로 적재(중복은 id로). '완료'는 reviewer 증거 게이트로만.
+- **findings → 원장:** survivor finding(verify 통과)을 `register --id <G###> --kind hardening --title <finding> --criteria <완료기준>`로 적재(중복은 id로). **`--kind hardening`은 생략 불가** — 감사 findings가 `product`로 들어가면 제품 진행률이 감사 잔여율로 바뀐다(실측: 한 프로젝트 원장 184건이 전부 findings였다). 게이트 강도는 헬퍼가 정한다(hardening 기본 `light`, 위험 키워드 매칭 시 자동 `strict` 승격).
+  - **완료기준에 전체 CI·전체 테스트를 넣지 않는다.** `CI green`·`pytest 전량`·`typecheck 전체`는 goal 완료 조건이 아니라 병합·릴리즈 체크포인트의 일이다. 여기 박으면 finding 하나 고칠 때마다 전체 CI가 돈다(실측 42/184건). criteria는 **이 변경을 증명하는 최소 검증**으로 쓴다 — 해당 테스트 파일·재현 명령·file:line.
 - **모듈 현황 → 두뇌:** 감사한 모듈을 `state-set --module <경로> --status green|risk|unknown --note "<한줄>" --audit-ref <goal id/근거>`로 upsert. reviewer-confirmed만 등록.
 - `.ksi/`가 없으면 → `/goals init` 후 위 두 upsert를 1줄 제안(opt-in). 자금경로·상태전이·멀티세션 프로젝트는 원장화가 기본값.
 - **AUDIT_<date>.md 신규 파일 금지** — prose 요약 필요하면 기존 파일 갱신.
-- **fleet 전파(어뷰징 finding 한정):** confirmed 어뷰징 finding은 같은 클래스를 공유하는 형제 프로젝트의 `.ksi` 원장에도 proposed goal로 register(대상 맵 SSOT = `~/.claude/templates/domain-invariants.example.md` 'Fleet 전파' 절). verify 통과분만.
-- **제품 리스크(fix 안 할 것):** 추적·수용 대상 보안/DB/어뷰징 finding은 goal이 아니라 `ksi-goals.py --dir <proj> risk-add`(플래그는 `--help`가 SSOT). 나중에 고치면 goal로 register, 지금 안 고치면 `risk-accept`(근거 필수). risk는 분리 lifecycle(open→accepted/resolved→regressed).
+- **fleet 전파(어뷰징 finding 한정):** confirmed 어뷰징 finding은 같은 클래스를 공유하는 형제 프로젝트의 `.ksi` 원장에도 `--kind hardening` proposed goal로 register(대상 맵 SSOT = `~/.claude/templates/domain-invariants.example.md` 'Fleet 전파' 절). verify 통과분만.
+- **goal이냐 risk냐 — 기준은 "고칠 건가"다.** 고칠 findings는 전부 `--kind hardening` goal로 간다(위 첫 항목). `risk-add`는 **고치지 않기로 했거나 수용 여부를 판단해야 하는 것**만 — 나중에 고치기로 정하면 그때 goal로 register, 지금 안 고치면 `risk-accept`(근거 필수). risk는 분리 lifecycle(open→accepted/resolved→regressed)이고 완료 술어를 오염시키지 않는다. 플래그는 `ksi-goals.py --dir <proj> risk-add --help`가 SSOT.
 
 ## 원칙
 - dial: exhaustiveness는 항상 최대가 아니라 작업 크기에 비례한다.

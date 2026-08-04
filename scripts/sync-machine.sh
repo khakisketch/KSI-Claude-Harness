@@ -51,7 +51,7 @@ case "$MODE" in
     else
       echo "   ⚠ workflows 복사 실패 — templates/workflows/ 확인"
     fi
-    for s in ksi-goals.py harness-selfcheck.py load-guard.sh capture.mjs journey.mjs; do
+    for s in ksi-goals.py ksi-goals-migrate.py harness-selfcheck.py load-guard.sh capture.mjs journey.mjs; do
       cp -f "plugins/ksi-harness/scripts/$s" "$HOME/.claude/scripts/" 2>/dev/null \
         && echo "   ✓ $s → ~/.claude/scripts/" || echo "   ⚠ $s 복사 실패"
     done

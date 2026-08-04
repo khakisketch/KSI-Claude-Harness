@@ -15,7 +15,7 @@ export const meta = {
 //  reviewer agentType 폴백 = agentType 미등록/미상 오류만 opus model로 폴백(counts.reviewer_fallbacks). 일시적 오류(rate-limit/timeout)는 폴백 대신 DEGRADED로 격리(rate-limit 악화 방지).
 //  return findings = verified+unverified union(하위호환). 'reviewer 통과'만 원하면 verified_findings(=confirmed/adjust). unverified_findings=verify 미트리거(정책 skip, 미검증).
 //  정지       = critic 무소득 또는 round == maxRounds(기본 2 · 천장 4, dial). 남은 미탐색 단위 = units_deferred.
-//  tier       = analyze:sonnet(dial, unit별 model override 가능) · verify/critic:reviewer(opus·xhigh·read-only, 부재 시 opus 폴백).
+//  tier       = analyze:sonnet(dial, unit별 model override 가능) · verify/critic:reviewer(opus·high·read-only, 부재 시 opus 폴백).
 // ====
 
 // ---- args (dial) ----
@@ -23,7 +23,7 @@ export const meta = {
 //   model은 unit별 analyzeModel override(alias만 — 풀 ID 금지), 미지정시 analyzeModel 사용.
 // context: 모든 에이전트 프롬프트 앞에 붙는 공통 맥락(제품·페르소나·경로·design-side spec). 강력 권장.
 // analyzeModel='sonnet'  (alias만 — 풀 ID 금지) · analyzeEffort='high'(기본 — 세션 xhigh 상속 차단, P1' 2축 배치)
-// reviewerAgent='reviewer' (기본) — verify·critic을 reviewer 서브에이전트(opus·xhigh·read-only)로 라우팅: frontmatter가
+// reviewerAgent='reviewer' (기본) — verify·critic을 reviewer 서브에이전트(opus·high·read-only)로 라우팅: frontmatter가
 //   effort·read-only를 세션과 무관하게 고정. verify는 정밀도 과제라 high가 기본이고, 재현율이 필요한 critic만 호출부에서 xhigh로 올린다. false면 model 기반(verifyModel/criticModel)으로 폴백.
 // verifyModel='opus' | criticModel='opus' — reviewerAgent=false일 때만 쓰는 폴백 모델.
 // maxRounds — critic 재투입 포함 상한: 기본 2, 천장 4(스킬 문서의 '상한 2'는 기본값 서술). verifySeverities=['critical'](기본) — verify 트리거(dial). 위험 표면 high는 자동 추가.
@@ -44,7 +44,7 @@ const verifyModel = A.verifyModel || 'opus'
 const criticModel = A.criticModel || 'opus'
 const maxRounds = Math.max(1, Math.min(4, A.maxRounds || 2))
 // verify 트리거: 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
-// 근거(실측): reviewer(opus·xhigh)가 서브에이전트 세션의 단일 최대 소비처였고, 그 대부분이
+// 근거(실측): reviewer(opus)가 서브에이전트 세션의 단일 최대 소비처였고, 그 대부분이
 // '일반 high' verify였다. 일반 high는 메인(opus·xhigh, full context)이 직접 판정하는 편이 싸고 정확하다.
 // 위험 표면(auth·권한·자금경로·상태전이·마이그레이션·시크릿)의 high는 틀리면 비싸므로 계속 반증한다.
 // A.verifySeverities를 명시하면 그 값이 우선(override 경로 무손상) — 예전 동작은 ['critical','high'].
@@ -63,7 +63,7 @@ if (!(Number.isFinite(batchSize) && batchSize >= 1)) {
   if (batchSize !== undefined) log(`⚠ batchSize 값 비정상(${JSON.stringify(A.batchSize)}) → units0.length(${units0.length})로 폴백`)
   batchSize = units0.length
 }
-// verify/critic = reviewer tier(opus·xhigh·read-only). reviewerAgent=false면 처음부터 model 기반.
+// verify/critic = reviewer tier(opus·high·read-only). reviewerAgent=false면 처음부터 model 기반.
 const reviewerAgent = A.reviewerAgent === undefined ? 'reviewer' : A.reviewerAgent
 // reviewer로 실행하되 미설치·미해석(agentType 미등록)이면 model 기반 opus로 폴백 —
 // verify가 silent no-op(미검증 finding을 그냥 confirmed)으로 무너지지 않게(가짜 green 방지).
@@ -206,7 +206,7 @@ while (pending.length && round < maxRounds) {
   // canonical no-barrier: 단위별로 분석이 끝나는 즉시 그 단위의 verify가 돈다.
   // batchSize로 동시 분석 단위 수를 제한(청크 사이는 barrier) — API rate-limit cascade 회피.
   // effort:'high' 명시 — 미지정이면 ultracode 세션의 xhigh를 전 analyze 워커가 상속해
-  // fan-out 수만큼 사고 비용이 곱해진다. 정형 분석=high로 충분(verify/critic은 reviewer frontmatter가 xhigh 고정 — 그쪽은 안 아낀다).
+  // fan-out 수만큼 사고 비용이 곱해진다. 정형 분석=high로 충분(verify/critic은 reviewer frontmatter가 high 고정 — 반증은 정밀도 과제라 그쪽은 안 올린다).
   const analyzeStage = (u) =>
     agent(`${CTX}\n${u.prompt}`, { label: `analyze:${u.key}`, phase: `Round ${round}`, schema: FINDINGS, model: u.model || analyzeModel, effort: A.analyzeEffort || 'high' })
   const verifyStage = (r, u) => {

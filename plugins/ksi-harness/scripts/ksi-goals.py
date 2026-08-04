@@ -91,6 +91,23 @@ ALLOWED = {
     "abandon": ("proposed", "in_progress", "blocked"),
 }
 
+# --- kind/verification (2026-08): 원장이 '제품 목표'와 '감사 findings'를 구분 못해 제품 현황 질문에
+#     감사 진행률로 답하던 문제 — kind로 분류를 강제하고, verification으로 게이트 강도를 kind에서 분리한다.
+KINDS = ("product", "hardening", "decision")
+VERIFICATION = ("light", "standard", "strict")
+# register --verification 미지정 시 kind별 기본값. decision=None은 '게이트 없음'(사람이 직접 결정 — 자동검증 대상 아님).
+DEFAULT_VERIFICATION = {"product": "standard", "hardening": "light", "decision": None}
+# 민감 표면 감지 — 매칭되면 지정 verification과 무관하게 strict로 기계 승격(하향 불가). 생산자가 자기 검증
+# 강도를 낮추는 구멍을 막는 핵심 안전장치. 프로젝트 확장은 .ksi/strict-keywords.txt(줄당 패턴, #주석/빈 줄 무시)로 OR.
+STRICT_KEYWORDS_BASE = (
+    r"auth|인가|권한|로그인|세션|토큰|비밀|secret|암호|payment|결제|환불|정산|자금|과금|"
+    r"migration|마이그레이션|스키마|삭제|drop|backup|복구|restore|개인정보|PII|테넌트|tenant"
+)
+STATUS_LABEL = {  # report가 내부 상태기계 어휘를 사람 말로 치환할 때 쓰는 상수 매핑(SSOT)
+    "proposed": "아직 시작 안 함", "in_progress": "진행 중", "blocked": "외부 조건 대기",
+    "completed": "완료", "false_positive_complete": "완료 취소됨", "abandoned": "중단됨",
+}
+
 
 def now():
     return datetime.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -175,14 +192,70 @@ def find(data, gid):
     sys.exit(f"goal '{gid}' 없음")
 
 
-def new_goal(gid, title, criteria=None, parent=None):
+def new_goal(gid, title, criteria=None, parent=None, kind=None, verification_requested=None):
     return {
         "id": gid, "title": title, "completion_criteria": criteria or [],
         "status": "proposed", "attempt": 1, "evidence": None, "verdict": None,
         "invalidation_reason": None, "parent": parent, "blocked_by": None,
         "ungated_attempts": 0,
+        # kind: register --kind로 필수 지정(신규). verification_requested: register --verification의 *요청값 그대로*
+        # (미지정이면 None) — 실효 게이트 강도가 아니다. 실효값은 저장하지 않고 effective_verification()이 매번
+        # 재계산한다(손편집으로 strict→light를 내리거나, 키워드 목록 확장이 기존 goal에 소급 안 되는 구멍을 차단).
+        "kind": kind, "verification_requested": verification_requested,
         "created_at": now(), "updated_at": now(),
     }
+
+
+def goal_kind(x):
+    """kind 조회 — 이 필드 도입 전 레코드(키 없음)는 읽을 때만 'unclassified'로 취급(파일은 안 고침 — 마이그레이션은 별도 스크립트 소관)."""
+    return x.get("kind") or "unclassified"
+
+
+def _load_strict_extra_keywords(kdir):
+    """.ksi/strict-keywords.txt 읽기(프로젝트별 strict 승격 확장) — 줄당 패턴, #주석/빈 줄 무시."""
+    ext_path = os.path.join(kdir, "strict-keywords.txt")
+    extra = []
+    if os.path.exists(ext_path):
+        with open(ext_path, encoding="utf-8") as f:
+            for line in f:
+                s = line.strip()
+                if s and not s.startswith("#"):
+                    extra.append(s)
+    return extra
+
+
+def _strict_pattern(extra_keywords=()):
+    pattern = STRICT_KEYWORDS_BASE + ("|" + "|".join(extra_keywords) if extra_keywords else "")
+    return re.compile(pattern, re.IGNORECASE)
+
+
+def effective_verification(goal, extra_keywords=()):
+    """실효 verification — 저장 필드(verification_requested)를 신뢰하지 않고 호출 시점마다 재계산한다
+    (kind 기본값 → 제목/완료기준이 민감 키워드에 매칭되면 무조건 strict로 승격, 하향 불가). 이 스크립트 docstring이
+    '상태 I/O만 결정론적으로'라 선언하지만 게이트 요건 판정은 정책이라 저장이 아니라 재계산이 맞다 — 저장값만
+    믿으면 goals.json 손편집으로 strict→light를 내릴 수 있고, 키워드 목록을 나중에 넓혀도 기존 goal엔 소급되지 않는다.
+    kind 없는(unclassified) 레코드는 안전한 쪽 strict로 폴백."""
+    kind = goal.get("kind")
+    if not kind:
+        return "strict"
+    requested = goal.get("verification_requested")
+    base = requested if requested is not None else DEFAULT_VERIFICATION.get(kind)
+    text = f"{goal.get('title', '')} " + " ".join(goal.get("completion_criteria") or [])
+    if _strict_pattern(extra_keywords).search(text):
+        return "strict"
+    return base
+
+
+def _verification_view(goal, extra_keywords=()):
+    """(effective, baseline, promoted) — baseline은 '요청값 또는 kind 기본값'(승격 전), promoted는 민감 키워드
+    매칭으로 baseline보다 강하게 올라갔는지. status --json/report가 '승격이 걸렸다'는 사실을 보여줄 때 쓴다."""
+    kind = goal.get("kind")
+    if not kind:
+        return "strict", "strict", False  # unclassified: strict가 baseline 자체(키워드 승격이 아니라 안전 폴백)
+    requested = goal.get("verification_requested")
+    baseline = requested if requested is not None else DEFAULT_VERIFICATION.get(kind)
+    eff = effective_verification(goal, extra_keywords)
+    return eff, baseline, (eff != baseline)
 
 
 def build_parser():
@@ -197,10 +270,20 @@ def build_parser():
     st.add_argument("--brief", action="store_true")
     st.add_argument("--json", action="store_true", help="기계판독 — goals-run.js 등 오케스트레이터용")
 
+    rp = sub.add_parser("report", help="사람용 제품 현황 — 내부 상태기계 어휘를 노출하지 않는다")
+    rp.add_argument("--brief", action="store_true", help="SessionStart 훅용 1줄 압축")
+    rp.add_argument("--ids", action="store_true", help="내부 goal id 노출(기본 숨김)")
+
     rg = sub.add_parser("register")
     rg.add_argument("--id", required=True)
     rg.add_argument("--title", required=True)
     rg.add_argument("--criteria", default="", help="완료기준 ; 로 구분")
+    rg.add_argument("--kind", required=True, choices=KINDS,
+                     help="product=사용자가 쓸 수 있게 되는 것 · hardening=감사findings/부채/검증인프라 · "
+                          "decision=사람 결정 대기 — 분류 못 하면 등록 거부(기본값 없음)")
+    rg.add_argument("--verification", default=None, choices=VERIFICATION,
+                     help="게이트 강도. 미지정 시 kind 기본값(product=standard·hardening=light·decision=게이트없음). "
+                          "민감 키워드(권한·결제·마이그레이션·삭제·복구 등) 매칭 시 지정과 무관하게 strict로 기계 승격(하향 불가)")
     rg.add_argument("--parent", default=None)
 
     sub.add_parser("start").add_argument("--id", required=True)
@@ -226,6 +309,16 @@ def build_parser():
     iv.add_argument("--id", required=True)
     iv.add_argument("--reason", required=True)
     iv.add_argument("--reopen", default="", help="새 goal들 id:title;id:title")
+
+    # kind는 상태기계가 아니라 라벨이라 ALLOWED 전이가드 대상이 아니다(의도적으로 ALLOWED에 안 넣음 — 모든
+    # 상태에서 허용). 마이그레이션 오분류를 손편집 없이 싸게 고치는 경로(ksi-goals-migrate.py 등 자동분류 도구의
+    # 오분류를 사람이 사후 교정).
+    sk = sub.add_parser("set-kind", help="kind 재분류(마이그레이션 오분류 교정) — 모든 상태에서 허용, 손편집 대체")
+    sk.add_argument("--id", required=True)
+    sk.add_argument("--kind", required=True, choices=KINDS)
+    sk.add_argument("--verification", default=None, choices=VERIFICATION,
+                     help="선택 — 주면 verification_requested를 갱신. 실효값은 여전히 effective_verification()이 "
+                          "재계산(민감 키워드 승격은 여기서도 못 내림)")
 
     ab = sub.add_parser("abandon")
     ab.add_argument("--id", required=True)
@@ -427,11 +520,13 @@ def cmd_state_show(sp, d, as_json, brief):
         print(f"  ⚠ stale {len(stale)}: 감사 후 HEAD가 바뀜 — 상태가 낡았을 수 있다(재감사 권장).")
 
 
-def cmd_status(data, brief, as_json=False):
+def cmd_status(data, brief, as_json=False, kdir=None):
     cnt = {s: 0 for s in STATES}
     for x in data["goals"]:
         cnt[x["status"]] = cnt.get(x["status"], 0) + 1
     # in_progress 우선(이미 착수한 걸 이어가는 게 새로 시작하는 것보다 actionable) — proposed는 후순위.
+    # 텍스트/--brief 렌더는 kind 도입 전과 100% 동일(하위호환 — .ksi 원장 소비자 계약 불변): 이 actionable은
+    # kind 무관 전체 목록이고, nxt/brief/기본 텍스트 출력에만 쓰인다. kind 인지 분리는 --json 전용(아래).
     actionable = sorted(
         (x for x in data["goals"] if x["status"] in ("proposed", "in_progress")),
         key=lambda g: 0 if g["status"] == "in_progress" else 1,
@@ -440,25 +535,43 @@ def cmd_status(data, brief, as_json=False):
     if as_json:
         # goals-run.js가 소비: actionable 목록(다음 실행 대상)·counts·정지/완료 술어.
         # 술어 분리: 예전 `done`=actionable 0은 '전부 blocked'도 done=true라 '완료'로 오해됐다.
-        #   - done       : actionable(proposed/in_progress) 0 → 실행 루프의 정지 조건(blocked는 사람 대기라 action 불가).
+        #   - done       : actionable(자율 실행 대상) 0 → 실행 루프의 정지 조건(blocked는 사람 대기라 action 불가).
         #   - all_completed: 모든 목표가 completed(빈 원장은 false) → 진짜 '프로젝트 완료' 술어.
         #   - quiescent  : actionable 0이지만 blocked가 남음 → 멈췄으나 미완(사람 개입 대기).
+        # kind 반영(2026-08): kind=decision(사람 결정 대기)은 자율 실행 대상이 아니다 — actionable에서 빼고
+        # decision_pending으로 따로 싣는다. done/quiescent도 이 축소판(actionable_auto) 기준 — '더 자율로 돌릴 것
+        # 없음'이 기준이지 '사람이 할 일까지 없음'이 아니다. all_completed는 kind 무관 원래 의미 그대로 유지.
         total = len(data["goals"])
         completed_n = cnt.get("completed", 0)
+        actionable_auto = [x for x in actionable if goal_kind(x) != "decision"]
+        decision_pending = [x for x in actionable if goal_kind(x) == "decision"]
+        counts_by_kind = {}
+        for x in data["goals"]:
+            k = goal_kind(x)
+            counts_by_kind[k] = counts_by_kind.get(k, 0) + 1
+        extra_kw = _load_strict_extra_keywords(kdir) if kdir else []
+
+        def _item(x):
+            eff, baseline, promoted = _verification_view(x, extra_kw)
+            return {"id": x["id"], "title": x["title"], "status": x["status"],
+                    "attempt": x.get("attempt", 1),
+                    "criteria": x.get("completion_criteria", []),
+                    "evidence": x.get("evidence", ""),
+                    "kind": goal_kind(x),
+                    "verification": eff,  # 실효값(저장 필드 아님) — cmd_gate와 동일 함수로 매번 재계산
+                    "verification_requested": x.get("verification_requested"),
+                    "verification_promoted": promoted}
+
         print(json.dumps({
             "project": data["project"],
             "counts": cnt,
-            "actionable": [
-                {"id": x["id"], "title": x["title"], "status": x["status"],
-                 "attempt": x.get("attempt", 1),
-                 "criteria": x.get("completion_criteria", []),
-                 "evidence": x.get("evidence", "")}
-                for x in actionable
-            ],
-            "done": len(actionable) == 0,          # 실행 루프 정지 조건(action 가능 목표 없음)
+            "counts_by_kind": counts_by_kind,
+            "actionable": [_item(x) for x in actionable_auto],
+            "decision_pending": [_item(x) for x in decision_pending],
+            "done": len(actionable_auto) == 0,          # 실행 루프 정지 조건(자율 실행 가능 목표 없음)
             "blocked": cnt.get("blocked", 0),
-            "all_completed": total > 0 and completed_n == total,   # 진짜 완료(전부 completed)
-            "quiescent": len(actionable) == 0 and cnt.get("blocked", 0) > 0,  # 멈췄으나 blocked 잔존
+            "all_completed": total > 0 and completed_n == total,   # 진짜 완료(전부 completed, kind 무관)
+            "quiescent": len(actionable_auto) == 0 and cnt.get("blocked", 0) > 0,  # 멈췄으나 blocked 잔존
         }, ensure_ascii=False))
         return
     if brief:
@@ -485,6 +598,102 @@ def cmd_status(data, brief, as_json=False):
             print(f"       ↳ 무효화: {x['invalidation_reason']}")
     print("\n  요약: " + " · ".join(f"{s}={cnt[s]}" for s in STATES if cnt[s]))
     print(f"  다음 actionable: {nxt}")
+
+
+def cmd_report(data, brief, show_ids):
+    """사람용 제품 현황 — status(내부 상태기계 진단 렌더)와 분리된 별도 커맨드. 내부 상태 어휘(proposed·
+    in_progress·false_positive_complete 등)를 그대로 노출하지 않고 STATUS_LABEL로 치환한다.
+    빈 구획은 출력하지 않는다(구획을 채우려고 항목을 만들지 않는다)."""
+    goals = data["goals"]
+
+    # 실측(2026-08-05): 원장 제목이 800자짜리 문단인 경우가 흔하다(감사 findings를 제목에 통째로 적은 잔재).
+    # 그대로 찍으면 '사람용 현황'이 다시 벽이 된다 — 첫 문장 경계에서 자르고 나머지는 --ids로 id를 얻어
+    # status/원장에서 보게 한다. 자른 사실은 …로 드러낸다(조용한 절단 금지).
+    def _short(s, limit=100):
+        s = " ".join(str(s or "").split())
+        if len(s) <= limit:
+            return s
+        head = s[:limit]
+        for sep in (" — ", ". ", " · ", ", "):
+            cut = head.rfind(sep)
+            if cut >= limit // 2:
+                return head[:cut] + " …"
+        return head.rstrip() + " …"
+
+    def line(g):
+        return f"[{g['id']}] {_short(g['title'])}" if show_ids else _short(g["title"])
+
+    decisions = [g for g in goals if goal_kind(g) == "decision"
+                 and g["status"] in ("proposed", "in_progress", "blocked")]
+    usable = [g for g in goals if goal_kind(g) == "product" and g["status"] == "completed"]
+    building = [g for g in goals if goal_kind(g) == "product" and g["status"] == "in_progress"]
+    upnext = [g for g in goals if goal_kind(g) == "product" and g["status"] == "proposed"][:3]
+    # decision은 위 '결정이 필요한 것'에 이미 나온다 — blocked 상태여도 여기 또 싣지 않는다(중복 제거).
+    blocked = [g for g in goals if g["status"] == "blocked" and goal_kind(g) != "decision"]
+    hardening_all = [g for g in goals if goal_kind(g) == "hardening"]
+    hardening_done = [g for g in hardening_all if g["status"] == "completed"]
+    unclassified = [g for g in goals if goal_kind(g) == "unclassified"]
+    invalidated = [g for g in goals if g["status"] == "false_positive_complete"]
+
+    if brief:
+        parts = []
+        if decisions:
+            parts.append(f"결정대기 {len(decisions)}")
+        if usable:
+            parts.append(f"사용가능 {len(usable)}")
+        if building:
+            parts.append(f"진행중 {len(building)}")
+        # 착수 전 제품 목표 — 이게 빠져 있어서 '아직 아무것도 시작 안 한 프로젝트'가 "기록 없음"으로 보였다.
+        pending_product = [g for g in goals if goal_kind(g) == "product" and g["status"] == "proposed"]
+        if pending_product:
+            parts.append(f"예정 {len(pending_product)}")
+        if blocked:
+            parts.append(f"막힘 {len(blocked)}")
+        if hardening_all:
+            parts.append(f"보완 {len(hardening_done)}/{len(hardening_all)}")
+        if unclassified:
+            parts.append(f"미분류 {len(unclassified)}")
+        print(f"{data['project']} 현황: " + (" · ".join(parts) if parts else "기록 없음"))
+        return
+
+    # 완료분은 개수 + 최근 것 몇 개만. 실측(한 프로젝트): completed product가 95개라 전량 나열하면
+    # '현황'이 아니라 변경 이력이 된다 — 사용자가 알고 싶은 건 "이미 된 것 목록"이 아니라
+    # "다음에 뭘 하나"다. 전량은 --ids로 id를 얻어 status/원장에서 본다.
+    USABLE_SHOWN = 5
+    usable_recent = sorted(usable, key=lambda g: g.get("updated_at") or "", reverse=True)[:USABLE_SHOWN]
+
+    sections = []  # 출력 순서 고정: 결정 필요 → 쓸 수 있음 → 만드는 중 → 다음 → 막힘 → 부록
+    if decisions:
+        sections.append(("지금 결정이 필요한 것", [f"  - {line(g)}" for g in decisions]))
+    if usable:
+        rows = [f"  - {line(g)}" for g in usable_recent]
+        if len(usable) > USABLE_SHOWN:
+            rows.insert(0, f"  총 {len(usable)}개 — 최근 {USABLE_SHOWN}개만 표시")
+        sections.append(("지금 쓸 수 있는 것", rows))
+    if building:
+        sections.append(("만들고 있는 것", [f"  - {line(g)}" for g in building]))
+    if upnext:
+        sections.append(("다음에 만들 것", [f"  - {line(g)}" for g in upnext]))
+    if blocked:
+        sections.append(("막힌 것", [f"  - {line(g)} — {_short(g.get('blocked_by'), 80) or '(사유 미기록)'}" for g in blocked]))
+    appendix = []
+    if hardening_all:
+        appendix.append(f"보완 작업 {len(hardening_done)}/{len(hardening_all)}")
+    if unclassified:
+        appendix.append(f"미분류 {len(unclassified)}건")
+    if invalidated:
+        appendix.append(f"{STATUS_LABEL['false_positive_complete']} {len(invalidated)}건")
+    if appendix:
+        sections.append(("부록", ["  " + " · ".join(appendix)]))
+
+    print(f"# {data['project']} — 현황")
+    if not sections:
+        print("  기록된 목표 없음 — register로 시작")
+        return
+    for title, lines in sections:
+        print(f"\n## {title}")
+        for ln in lines:
+            print(ln)
 
 
 def main():
@@ -517,7 +726,10 @@ def main():
         data = load(gp)
 
         if args.cmd == "status":
-            cmd_status(data, args.brief, getattr(args, "json", False))
+            cmd_status(data, args.brief, getattr(args, "json", False), kdir)
+            return
+        if args.cmd == "report":
+            cmd_report(data, args.brief, args.ids)
             return
 
         if args.cmd == "state-set":
@@ -553,10 +765,18 @@ def main():
             if args.parent and not any(x["id"] == args.parent for x in data["goals"]):
                 print(f"⚠ parent '{args.parent}' 미존재 — 참조만 기록(트리 검증 없음)")
             crit = [c.strip() for c in args.criteria.split(";") if c.strip()]
-            data["goals"].append(new_goal(args.id, args.title, crit, args.parent))
-            log(lp, "registered", args.id, status="proposed", parent=args.parent)
+            g = new_goal(args.id, args.title, crit, args.parent, args.kind, args.verification)
+            extra_kw = _load_strict_extra_keywords(kdir)
+            eff, baseline, promoted = _verification_view(g, extra_kw)
+            if promoted:
+                print(f"⚠ {args.id}: 제목/완료기준에 민감 키워드 감지 — verification '{baseline}' → 'strict' 기계 승격"
+                      " (하향 불가 — gate 시점에도 재계산되어 손편집으로 못 내림)", file=sys.stderr)
+                log(lp, "verification_promoted", args.id, from_verification=baseline, to="strict")
+            data["goals"].append(g)
+            log(lp, "registered", args.id, status="proposed", parent=args.parent,
+                kind=args.kind, verification_requested=args.verification)
             save(gp, data)
-            print(f"✓ 등록: {args.id}  (완료기준 {len(crit)}개 — gate가 이 기준 대비 검증)")
+            print(f"✓ 등록: {args.id} [{args.kind}/{eff or '게이트없음'}]  (완료기준 {len(crit)}개 — gate가 이 기준 대비 검증)")
             return
 
         x = find(data, args.id)
@@ -594,11 +814,21 @@ def main():
             if x["ungated_attempts"] > 3:
                 print(f"⚠ {args.id}: gate 없이 attempt {x['ungated_attempts']}회 반복 — 게이트 우회 의심, reviewer 검증을 실제로 돌려라")
         elif args.cmd == "gate":
+            # verification은 저장 필드를 신뢰하지 않고 매번 재계산(effective_verification) — kind/verification
+            # 없는(unclassified) 기존 레코드는 안전한 쪽 strict로 취급. 강도별 pass 요건(하향 완화만, 아래 세 불변식은
+            # 그대로): ① 증거(공백 포함) 없는 pass는 강도 무관 항상 거부 ② strict만 --reviewer 필수 ③ decision
+            # 기본(게이트 없음, verification=None)만 --evidence-ref도 면제 — 나머지(strict/standard/light)는 필수.
+            verification = effective_verification(x, _load_strict_extra_keywords(kdir))
             if args.verdict == "pass":
                 if not (x.get("evidence") or "").strip():
-                    sys.exit(f"{args.id}: 증거 없이 pass 불가 — 먼저 `attempt --evidence` 후 reviewer 검증(증거 게이트 우회 금지)")
-                if not (args.reviewer or "").strip() or not (args.evidence_ref or "").strip():
-                    sys.exit(f"{args.id}: pass verdict엔 --reviewer(검증 주체)와 --evidence-ref(아티팩트 경로/transcript id) 필수 — 자기선언 pass 차단")
+                    sys.exit(f"{args.id}: 증거 없이 pass 불가 — 먼저 `attempt --evidence` 후 검증(증거 게이트 우회 금지, 완화 불가)")
+                if verification == "strict":
+                    if not (args.reviewer or "").strip() or not (args.evidence_ref or "").strip():
+                        sys.exit(f"{args.id}: verification=strict pass엔 --reviewer(검증 주체)와 --evidence-ref(아티팩트 경로/transcript id) 둘 다 필수 — 자기선언 pass 차단")
+                elif verification is not None:  # standard, light — evidence-ref만 필수, reviewer는 선택
+                    if not (args.evidence_ref or "").strip():
+                        sys.exit(f"{args.id}: pass verdict엔 --evidence-ref(아티팩트 경로/transcript id) 필수 — 자기선언 pass 차단")
+                # verification is None(decision 기본 — 게이트 없음): 추가 요건 없음. 위 증거-없음 거부만 불변 적용.
             evidence_snapshot = x.get("evidence")
             x["verdict"] = {"verdict": args.verdict, "note": args.note, "at": now(),
                              "reviewer": args.reviewer, "evidence_ref": args.evidence_ref}
@@ -639,7 +869,19 @@ def main():
                     # 여기선 abort 대신 skip(무효화 자체는 진행) — 잘못된 id 하나가 전체 invalidate를 막지 않게.
                     skipped.append(nid + "(형식위반)")
                 elif nid and not any(y["id"] == nid for y in data["goals"]):
-                    data["goals"].append(new_goal(nid, ntitle or nid, parent=args.id))
+                    # 재오픈 goal은 무효화된 원본의 kind/verification_requested를 계승(register --kind 필수는
+                    # 신규 등록 CLI 경로 한정 — 무효화-재오픈은 같은 의도의 연속이라 원본 분류를 이어받는다).
+                    inherited_kind = x.get("kind")
+                    inherited_verif_req = x.get("verification_requested")
+                    new_g = new_goal(nid, ntitle or nid, parent=args.id,
+                                      kind=inherited_kind, verification_requested=inherited_verif_req)
+                    if inherited_kind:
+                        eff, baseline, promoted = _verification_view(new_g, _load_strict_extra_keywords(kdir))
+                        if promoted:
+                            print(f"⚠ {nid}: 재오픈 goal 제목에 민감 키워드 감지 — verification '{baseline}' → 'strict' 기계 승격",
+                                  file=sys.stderr)
+                            log(lp, "verification_promoted", nid, from_verification=baseline, to="strict")
+                    data["goals"].append(new_g)
                     reopened.append(nid)
                 elif nid:
                     skipped.append(nid)
@@ -658,6 +900,22 @@ def main():
             log(lp, "abandoned", args.id, reason=args.reason)
             save(gp, data)
             print(f"— {args.id} abandoned")
+        elif args.cmd == "set-kind":
+            # ALLOWED 대상이 아니라 위 전이가드를 안 거친다(의도적 — kind는 라벨이지 상태전이가 아님).
+            old_kind, old_verif = x.get("kind"), x.get("verification_requested")
+            x["kind"] = args.kind
+            if args.verification is not None:
+                x["verification_requested"] = args.verification
+            x["updated_at"] = now()
+            log(lp, "kind_changed", args.id, old_kind=old_kind, new_kind=args.kind,
+                old_verification_requested=old_verif, new_verification_requested=x.get("verification_requested"))
+            save(gp, data)
+            eff = effective_verification(x, _load_strict_extra_keywords(kdir))
+            msg = f"✓ {args.id} kind: {old_kind or 'unclassified'} → {args.kind}"
+            if args.verification is not None:
+                msg += f" · verification_requested: {old_verif} → {x['verification_requested']}"
+            msg += f"  (실효 verification: {eff or '게이트없음'})"
+            print(msg)
     finally:
         if lockfile is not None:
             _unlock(lockfile)

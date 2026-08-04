@@ -14,8 +14,14 @@ except Exception: print("")
 
 # 경로 A: 원장 있음 → 미완 goal 복원 넛지(기존 동작)
 if [ -f "$cwd/.ksi/goals.json" ]; then
-  brief="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ksi-goals.py" --dir "$cwd" status --brief 2>/dev/null)"
+  # `report`(사람용 제품 현황)를 우선 쓴다 — 세션 시작에 뜨는 건 내부 상태기계가 아니라 "지금 뭘 쓸 수 있나"여야 한다.
+  # 구버전 ksi-goals.py(report 미탑재 — dist 설치 머신)에서는 argparse가 exit 2를 내므로 status로 폴백한다.
+  brief="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ksi-goals.py" --dir "$cwd" report --brief 2>/dev/null)"
   rc=$?
+  if [ "$rc" -ne 0 ] || [ -z "$brief" ]; then
+    brief="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/ksi-goals.py" --dir "$cwd" status --brief 2>/dev/null)"
+    rc=$?
+  fi
   if [ -z "$brief" ]; then
     # goals.json은 실존하는데(위에서 확인) 출력이 비었다 — 진짜 '완료할 게 없음'(rc=0)과
     # 파싱/읽기 실패(rc!=0, 예외가 stderr로 삼켜짐)를 구분해 후자만 가시화(은폐 방지).

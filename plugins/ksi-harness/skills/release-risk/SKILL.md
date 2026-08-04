@@ -28,7 +28,7 @@ when_to_use: 배포·릴리즈·마이그레이션·백필·결제 경로 변경
 5. 롤백 또는 완화책을 정의.
 6. `Approved` / `Needs changes` / `Blocked` 판정 — 증거 부족이면 조건부 또는 Blocked(green≠작동).
 
-**티어링:** 고위험(자금·마이그·배포)의 최종 verify는 reviewer tier(opus·xhigh·read-only)로, verify끼리 모순이면 메인 tiebreak 1회. verify가 부분 실패하면 DEGRADED로 표기하고 낙관 결론 보류(승인 금지). 큰 릴리즈 surface는 `/codebase-audit`(운영조건/fault-injection 렌즈)로 fan-out.
+**티어링:** 고위험(자금·마이그·배포)의 최종 verify는 reviewer tier(opus·high·read-only)로, verify끼리 모순이면 메인 tiebreak 1회. verify가 부분 실패하면 DEGRADED로 표기하고 낙관 결론 보류(승인 금지). 큰 릴리즈 surface는 `/codebase-audit`(운영조건/fault-injection 렌즈)로 fan-out.
 
 ## 출력
 ```md

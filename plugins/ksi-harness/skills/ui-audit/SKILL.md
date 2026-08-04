@@ -28,7 +28,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 
 2. **캡처 — 실행 위치 라우팅**
    - preflight(필수): `bash ~/.claude/scripts/load-guard.sh check` — RED(exit 2)면 CI 경로 우선. 로컬 불가피 시 저강도 진행(capture.mjs 자동 감속: self-nice 10·동시성 1), 지연 가능성 1줄 보고. YELLOW는 경고 후 진행.
-   - local(기본): `/run`·`/verify`로 앱 기동 → `node ~/.claude/scripts/capture.mjs --pages <pages>`(reduced-motion 고정, 고신뢰 트래커만 차단, 부하 적응 동시성. 폰트/이미지 차단 등 픽셀을 바꾸는 최적화 금지). `load-guard.sh run -- <cmd>`로 감싼다(flock 직렬화). 기동 불가면 사용자에게 방법을 1줄로 묻는다.
+   - local(기본): `/run`으로 앱 기동 → `node ~/.claude/scripts/capture.mjs --pages <pages>`(reduced-motion 고정, 고신뢰 트래커만 차단, 부하 적응 동시성. 폰트/이미지 차단 등 픽셀을 바꾸는 최적화 금지). `load-guard.sh run -- <cmd>`로 감싼다(flock 직렬화). 기동 불가면 사용자에게 방법을 1줄로 묻는다.
      - 인증 앱은 `--setup <hook.mjs>` 필수 — 없으면 전 페이지가 로그인 화면 사본인데도 성공 보고될 수 있다. 훅 시그니처: `export default async function setup(page, {base, viewport})`. 역할별 감사는 env(`QA_ROLE`)로 분기.
      - `do` 스텝으로 인터랙션 상태 캡처 — `{key, path, do:[{click:sel},{fill:sel,value},{select},{press},{hover},{scroll},{wait},{waitFor},{offline},{emulate:'print'}]}`. 정지 URL만 캡처하면 팝오버·오프라인 등 결함은 안 보인다.
      - 캡처 후 `manifest.json`을 픽셀보다 먼저 읽는다 — 샷별 `finalUrl`·`redirected`·`sha1`·`consoleErrors`·`failedRequests`로 죽은 메뉴·CSP 차단·API 실패가 판독 전에 드러난다.
@@ -59,7 +59,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
    - 콜드스타트는 별도 빈 스택으로 — 빈 DB로 API/WEB 포트 분리 기동 후 가입부터 첫 산출물까지 완주.
    - 앱 밖 산출물(인쇄 `{emulate:'print'}`·`page.pdf()`, 백엔드 리포트/PDF, 비로그인 공유 링크)도 이 레인이 맡는다.
 
-4. **adversarial 검증 + 완성도 critic → 재투입** — verify 트리거에 걸린 finding(기본·확장 규칙은 LOOP CONTRACT가 SSOT)을 `reviewer`(opus·xhigh·read-only)가 같은 스크린샷으로 반증(거짓양성·과장 제거). 살아남은 것만 채택. 인터랙티브 경로는 Task로 `subagent_type: reviewer` spawn.
+4. **adversarial 검증 + 완성도 critic → 재투입** — verify 트리거에 걸린 finding(기본·확장 규칙은 LOOP CONTRACT가 SSOT)을 `reviewer`(opus·high·read-only)가 같은 스크린샷으로 반증(거짓양성·과장 제거). 살아남은 것만 채택. 인터랙티브 경로는 Task로 `subagent_type: reviewer` spawn.
    - **메인의 재측정(top-N 직접 재현) — 여정 레인을 돌렸으면 필수.** reviewer는 Bash 없이 스크린샷만 다시 보므로 브라우저를 재현할 수 없다 — "패널이 x=-167에 열린다" 같은 측정 주장은 메인이 critical/high 상위 건을 직접 재현해 숫자로 확인한다. 재현된 것만 CONFIRMED, 못 한 것은 '미재현'.
    - **완성도 critic(reviewer):** 안 본 페이지·뷰포트·역할·빈/초과 상태 1패스 재점검. 추가 체크 — 인터랙션 상태(§1) 미촬영 · 여정 레인(3-B) 생략 · 콜드스타트 빈 스택 미기동. 이 셋이 비면 findings 수와 무관하게 지적한다. critic이 낸 새 결함도 adversarial verify를 한 번 더 통과시켜 채택하고, maxRounds 내면 재캡처·재감사.
    - 실행형 골격: §0 참조.

@@ -12,8 +12,40 @@ try: print(json.load(sys.stdin).get("cwd","") or "")
 except Exception: print("")
 ' 2>/dev/null)"
 [ -z "$cwd" ] && cwd="$PWD"
+
+# ── 전역 하네스 정합(프로젝트와 무관 · 하루 1회 throttle) ──────────────────────────────
+# 왜 여기: 문서↔기계 드리프트(frontmatter가 준다고 한 model/effort와 산문의 안내가 다름, 죽은 /스킬 참조,
+# memory가 사라진 절을 SSOT로 지목)는 사람이 읽어야만 보여서 감사 3회가 같은 걸 반복 발견했다. 기계로 옮기고
+# 세션 시작에 밀어 올린다. 알림-only(아무것도 막지 않음) — 훅 doctrine 그대로.
+cons=""
+sentinel="${TMPDIR:-/tmp}/claude-ksi-consistency.last"
+now="$(date +%s 2>/dev/null)"; : "${now:=0}"
+skip_cons=0
+if [ -f "$sentinel" ] && [ "$now" -gt 0 ]; then
+  last="$(cat "$sentinel" 2>/dev/null)"; : "${last:=0}"
+  case "$last" in ''|*[!0-9]*) last=0 ;; esac
+  [ $((now - last)) -lt 86400 ] && skip_cons=1
+fi
+if [ "$skip_cons" -eq 0 ] && [ -f "${CLAUDE_PLUGIN_ROOT:-$HOME/.claude}/scripts/harness-selfcheck.py" ]; then
+  out="$(timeout 10 python3 "${CLAUDE_PLUGIN_ROOT:-$HOME/.claude}/scripts/harness-selfcheck.py" consistency 2>/dev/null)"
+  if [ $? -eq 1 ]; then
+    n="$(printf '%s' "$out" | grep -c '^  ✗ ')"
+    first="$(printf '%s' "$out" | grep -m1 '^  ✗ ' | sed 's/^  ✗ //')"
+    cons="⚠ 하네스 정합 불일치 ${n}건 — 문서가 안내하는 값과 기계가 실제로 주는 값이 다름. 예: ${first}
+(전체: \`python3 ~/.claude/scripts/harness-selfcheck.py consistency\`. 알림-only — 지금 안 고쳐도 된다.)"
+  fi
+  [ "$now" -gt 0 ] && printf '%s' "$now" > "$sentinel" 2>/dev/null
+fi
+
 cfg="$cwd/.claude/settings.json"
-[ -f "$cfg" ] || exit 0
+if [ ! -f "$cfg" ]; then
+  [ -z "$cons" ] && exit 0
+  WARN="$cons" python3 -c '
+import os, json
+print(json.dumps({"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":os.environ["WARN"]}}))
+' 2>/dev/null
+  exit 0
+fi
 
 warn="$(CFG="$cfg" python3 -c '
 import os, json
@@ -41,6 +73,7 @@ if issues:
           + "\n(전역 doctrine: 로컬 LLM은 하네스 용도로 쓰지 않는다. 이 설정은 세션을 깨거나 권한을 우회시킬 수 있음 — 제거를 권장.)")
 ' 2>/dev/null)"
 
+[ -n "$cons" ] && warn="$(printf '%s%s%s' "$cons" "${warn:+$'\n\n'}" "$warn")"
 [ -z "$warn" ] && exit 0
 WARN="$warn" python3 -c '
 import os, json

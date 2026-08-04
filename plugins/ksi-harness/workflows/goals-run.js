@@ -21,6 +21,14 @@ export const meta = {
 //  evidence-gate = reviewer가 criteria 대비 증거를 adversarial 검증. refuted면 gate 안 통과 → 그 목표는
 //    actionable로 남지만, 같은 목표 attempt N회 실패면 무한루프 방지로 skip(needsHuman).
 //  self-report 불신 = worker "완료" 선언이 아니라 reviewer 게이트통과만 completed. ksi-goals가 코드로 강제.
+//  verification 강도와의 관계 = 인터랙티브 경로(goals SKILL)는 light/standard에서 reviewer를 생략하지만
+//    **이 루프는 강도와 무관하게 전 목표에 reviewer 게이트를 건다.** 이유: 인터랙티브에서 강도를 낮출 수 있는
+//    근거는 "메인이 full context로 직접 대조한다"인데, 여기엔 그 사람이 없다(오케스트레이터는 JS다).
+//    강도로 분기하면 worker 자기신고가 곧 completed가 되어 위 'self-report 불신'이 무너진다. 분기하지 않는다.
+//  kind = kind:decision(대표자 결정 대기)은 ksi-goals가 actionable에서 제외한다 — 사람이 정할 것을 자율 실행
+//    대상으로 삼지 않는다. 대신 decision_pending으로 실려 오고, 종료 로그가 "actionable 0"을 완료로 오독하지
+//    않도록 남은 결정 건수를 함께 알린다. RED 정규식(하드스톱)과는 다른 축이다 — RED는 '실행 금지', decision은
+//    '애초에 실행할 일이 아님'. RED와 verification:strict는 어휘가 겹치지만 동작이 다르다(RED=스킵, strict=reviewer 필수).
 // ====
 
 let A = args || {}
@@ -47,12 +55,22 @@ const STATUS_SCHEMA = {
     all_completed: { type: 'boolean' },
     quiescent: { type: 'boolean' },
     counts: { type: 'object', additionalProperties: true },
+    // 목표 종류별 집계 + 사람 결정 대기(kind=decision). decision은 actionable에서 빠지므로(자율 실행 대상 아님)
+    // 여기 실어오지 않으면 "actionable 0 = 완료"로 오독된다 — 종료 로그에서 별도로 알린다.
+    counts_by_kind: { type: 'object', additionalProperties: true },
+    decision_pending: {
+      type: 'array', items: {
+        type: 'object', additionalProperties: false, required: ['id', 'title'],
+        properties: { id: { type: 'string' }, title: { type: 'string' } },
+      },
+    },
     actionable: {
       type: 'array', items: {
         // attempt는 required — 크로스세션 loop-guard(baselineAttemptById)의 durability가 이 필드에 걸려 있어
         // structured-output round-trip에서 optional 드롭되면 조용히 세션-only로 강등된다(reviewer 반증 권고 반영).
+        // kind·verification은 optional — 구버전 원장(필드 부재)과 섞여 돌 수 있고, 이 루프는 둘로 분기하지 않는다(아래 CONTRACT).
         type: 'object', additionalProperties: false, required: ['id', 'title', 'status', 'attempt'],
-        properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' }, attempt: { type: 'integer' }, criteria: { type: 'array', items: { type: 'string' } }, evidence: { type: ['string', 'null'] } },
+        properties: { id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' }, attempt: { type: 'integer' }, kind: { type: 'string' }, verification: { type: ['string', 'null'] }, criteria: { type: 'array', items: { type: 'string' } }, evidence: { type: ['string', 'null'] } },
       },
     },
   },
@@ -237,6 +255,9 @@ if (processed >= maxGoals && remaining && remaining !== 0) {
   log(`⏸ 세션 예산(${maxGoals}) 도달 — 남은 actionable ${remaining}개는 다음 세션이 이어간다(원장이 SSOT, 마라톤 방지 suspend).`)
 }
 if (skipped.length) log(`⚠ 사람 처리 필요 ${skipped.length}건(red-lane/반복실패/needs_human) — 아래 목록.`)
+// kind:decision은 actionable에서 빠져 있다 — 알리지 않으면 "actionable 0"이 완료로 읽힌다(대표자 결정이 묻히던 실패 모드).
+const decisions = fin ? (fin.decision_pending || []) : []
+if (decisions.length) log(`◆ 대표자 결정 대기 ${decisions.length}건 — 자율 실행 대상이 아니라 사람이 정해야 진행된다: ${decisions.map((d) => d.title).join(' · ').slice(0, 200)}`)
 if (recordFailures.length) log(`⚠ DEGRADED: ${recordFailures.length}건은 reviewer pass였으나 원장 봉인 미확인(가짜완료 방지 — done 아님). 수동 확인 필요.`)
 if (statusReadFailed) log(`⚠ DEGRADED: 원장 상태 읽기 실패로 조기 중단 — 완료 판단 보류.`)
 
@@ -245,6 +266,7 @@ return {
   completed_this_session: done,
   needs_human: skipped,
   record_failures: recordFailures, // reviewer pass인데 원장이 completed로 봉인 안 된 건(가짜완료 격리)
+  decision_pending: decisions, // 대표자가 정해야 진행되는 건 — actionable에 안 세지만 '완료'도 아니다
   remaining_actionable: remaining,
   suspended: processed >= maxGoals && remaining !== 0,
   // green≠작동: 기록 실패·상태읽기 실패가 있으면 낙관 top-line 보류(위임자가 완료로 relay 금지).
