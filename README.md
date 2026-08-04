@@ -10,7 +10,7 @@ AI가 "다 했어요"라고 할 때 *정말* 된 건지, 위험한 명령은 안
 [![version](https://img.shields.io/badge/version-0.9.21-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 [![skills](https://img.shields.io/badge/skills-7-0ea5e9?style=flat-square)](#-무엇이-들어있나)
-[![agents](https://img.shields.io/badge/agents-3-0ea5e9?style=flat-square)](#-에이전트--모델-등급-3)
+[![agents](https://img.shields.io/badge/agents-3-0ea5e9?style=flat-square)](#-에이전트--현장의-세-사람-3)
 [![hooks](https://img.shields.io/badge/hooks-13-0ea5e9?style=flat-square)](#-훅--자동-반사-신경-13)
 [![main-agnostic](https://img.shields.io/badge/main--agnostic-✓-16a34a?style=flat-square)](#-설계-원칙)
 
@@ -134,16 +134,32 @@ bash scripts/sync-machine.sh --plugin
 | `goals` | 세션을 넘는 작업 장부 — "완료"는 증거 확인 후에만 |
 | `release-risk` | 배포·마이그레이션 전 위험 점검 |
 
-### 🤖 에이전트 — 모델 등급 (3)
+### 🤖 에이전트 — 현장의 세 사람 (3)
 
-도메인 전문가가 아니라 **비용·context 격리용 등급**입니다.
+도메인 전문가가 아니라 **비용·context 격리용 모델 등급**입니다.
+한국 건설현장의 안전모 색 관행을 그대로 씁니다 — 🔵 신입 조사 · 🟡 시공 · ⚪ 감리.
 
-| 에이전트 | 모델 | effort | 역할 |
-|---|:--:|:--:|---|
-| `Explore` | Haiku | — | 탐색·조사 — 파일 덤프가 아니라 "무엇이 어디에 있나"만 반환 *(read-only)* |
-| `worker` | Sonnet | `xhigh` | 구현 — 합의된 목표 안에서 **방법은 스스로 소유** |
-| `reviewer` | Opus | `high` | 검증 — 다른 에이전트 결과에 "진짜 맞아?" 반박 *(구조적 read-only)* |
-| **메인** | *사용자 선택* | *세션값* | 판단·오케스트레이션 — 하네스는 메인 모델을 가정하지 않습니다 |
+<table>
+<tr>
+<td width="33%" align="center"><img src="assets/characters/explore.png" width="200" alt="Explore — 파란 안전모를 쓴 신입 조사원"></td>
+<td width="33%" align="center"><img src="assets/characters/worker.png" width="200" alt="worker — 노란 안전모를 쓴 베테랑 작업자"></td>
+<td width="33%" align="center"><img src="assets/characters/reviewer.png" width="200" alt="reviewer — 흰 안전모를 쓴 감리"></td>
+</tr>
+<tr>
+<td align="center"><b><code>Explore</code></b><br/>🔵 파란 안전모 · 신입 조사원<br/><br/><code>Haiku</code></td>
+<td align="center"><b><code>worker</code></b><br/>🟡 노란 안전모 · 시공 베테랑<br/><br/><code>Sonnet</code> · <code>xhigh</code></td>
+<td align="center"><b><code>reviewer</code></b><br/>⚪ 흰 안전모 · 감리<br/><br/><code>Opus</code> · <code>high</code></td>
+</tr>
+<tr>
+<td align="center"><sub>먼저 들어가 둘러보고 돌아온다.<br/>파일 덤프가 아니라 <b>"무엇이 어디에 있나"</b>만.<br/><i>(read-only)</i></sub></td>
+<td align="center"><sub>현장에서 실제로 짓는다.<br/>합의된 목표 안에서 <b>방법은 스스로 소유</b>.</sub></td>
+<td align="center"><sub>도면 대비 검측하고 아니면 반려한다.<br/><b>"이거 진짜 맞아?"</b><br/><i>(구조적 read-only)</i></sub></td>
+</tr>
+</table>
+
+**메인**은 *사용자가 세션마다 고릅니다* — 판단·오케스트레이션 담당이고, 하네스는 어떤 메인 모델도 가정하지 않습니다.
+
+감리가 검측해서 도면과 다르면 재시공 — 그게 이 하네스의 **evidence gate**입니다. 만든 사람이 스스로 통과시키지 못합니다.
 
 <details>
 <summary><b>왜 reviewer가 worker보다 effort가 낮은가?</b></summary>
