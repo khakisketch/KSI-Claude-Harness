@@ -88,10 +88,23 @@ bash scripts/sync-machine.sh --plugin
 
 ## 설치하면 달라지는 것
 
+같은 요청, 같은 모델입니다. 하네스가 있고 없고의 차이만 봅니다.
+
+### 되돌릴 수 없는 명령
+
+<img src="assets/demo/force-push.png" alt="force push가 차단되고 --force-with-lease를 제안하는 비교 화면" width="100%">
+
+### 테스트는 통과하는데 실제로는 안 되는 경우
+
+<img src="assets/demo/fake-green.png" alt="테스트 통과 후 검증을 상기시켜 진짜 원인을 찾아내는 비교 화면" width="100%">
+
+<details>
+<summary><b>어떤 상황에서 무엇이 발화하는지 (전체)</b></summary>
+
 | 이런 상황에서 | 하네스가 하는 일 | |
 |---|---|:--:|
-| `rm -rf /` · `git push --force` · `DROP DATABASE` 실행 시도 | **자동 차단** | 🛑 |
-| 시크릿(.env·API 키)이 담긴 채 `git push` | **push 차단** | 🛑 |
+| `rm -rf /` · `git push --force` · `DROP DATABASE` 실행 시도 | 자동 차단 | 🛑 |
+| 시크릿(.env·API 키)이 담긴 채 `git push` | push 차단 | 🛑 |
 | 화면 코드(`.tsx`/`.css`)를 고치고 "완료" | "실제 렌더를 확인했나요?" | 💬 |
 | 테스트·서비스 코드(`.py`)를 고치고 "완료" | "초록불이 실제 작동 맞나요?" | 💬 |
 | `.py` 저장 | ruff 린트 자동 실행 | 💬 |
@@ -99,42 +112,17 @@ bash scripts/sync-machine.sh --plugin
 | 하드코딩 비밀번호·파괴적 DB 변경 저장 | 경고 한 줄 | 💬 |
 | 새 세션 시작 | 지난 세션 미완료 작업·프로젝트 상태 복원 | 💬 |
 
-### 훅은 두 종류뿐입니다
+훅은 두 종류뿐입니다.
 
 | | 대상 | 동작 |
 |:--:|---|---|
-| 🛑 **안전벨트** | 되돌릴 수 없는 것 — 루트 삭제 · force push · `DROP DATABASE` · 시크릿 push · `reset --hard` | **차단**. 끌 수 없습니다 |
-| 💬 **알림** | 나머지 전부 — lint · 취약점 · 렌더 확인 · 동작 검증 · 착수 범위 | 한 줄 알림. **아무것도 막지 않습니다** |
+| 🛑 **안전벨트** | 되돌릴 수 없는 것 — 루트 삭제 · force push · `DROP DATABASE` · 시크릿 push · `reset --hard` | 차단. 끌 수 없습니다 |
+| 💬 **알림** | 나머지 전부 — lint · 취약점 · 렌더 확인 · 동작 검증 · 착수 범위 | 한 줄 알림. 아무것도 막지 않습니다 |
 
 강도를 조절하는 스위치는 두지 않았습니다. 완료를 막는 훅이 없으니 "관문 해제"라는 용도 자체가 없습니다.
 알림이 거슬리면 끄는 게 아니라 그 알림의 발화 조건을 좁히는 편이 맞습니다.
 
-실제로 이렇게 나옵니다.
-
-```console
-$ rm -rf /
-pre-destructive-guard 차단: rm -r 복구불가급 대상: /
-
-$ git push --force origin main
-pre-destructive-guard 차단: git push --force(-f·-fu 등 f 포함)
-  --force-with-lease를 단독으로 쓰거나 사용자가 직접 실행(사용자 승인 사항)
-
-$ rm -rf node_modules
-(통과. 스크래치·빌드 산출물은 막지 않습니다)
-```
-
-`.py`를 저장하면 lint 결과가 그 자리에서 대화에 주입됩니다.
-
-```console
-ruff lint issues in src/parser.py:
-F401 [*] `os` imported but unused
-F841 Local variable `y` is assigned to but never used
-Found 4 errors.
-
-계속하기 전에 이 lint 문제를 고치세요.
-```
-
----
+</details>
 
 ## 어떻게 쓰나
 
