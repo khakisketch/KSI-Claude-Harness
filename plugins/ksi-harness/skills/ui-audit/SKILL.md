@@ -1,7 +1,7 @@
 ---
 name: ui-audit
 description: UI를 코드가 아니라 렌더링된 픽셀과 실제 동선으로 검증한다. 앱을 띄워 핵심 페이지를 여러 뷰포트(mobile 390·tablet 768·desktop 1440)로 캡처하는 '페이지 레인'과, 페르소나가 자기 브라우저로 업무를 완수해보는 '여정 레인'을 대칭으로 돌린 뒤 adversarial 검증·메인 재측정으로 우선순위 findings를 낸다. "타입·e2e는 통과하는데 화면이 깨진다"와 "화면은 멀쩡한데 일이 안 된다" 두 클래스를 함께 잡는다.
-when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 보고할 때, 프론트 대량 fan-out 작업 후, 또는 주기적 시각 회귀 점검. 백엔드 검증(ruff/pytest)의 프론트 대응물. **단, 1~2줄 스타일·단일 컴포넌트 변경엔 이 스킬(전량 fan-out) 금지** — 전역/프로젝트 CLAUDE.md의 UI 렌더 확인 지침(390/768/1440 스크린샷 1회)으로 충분(codebase-audit §0 하한과 대칭).
+when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 보고할 때, 프론트 대량 fan-out 작업 후, 또는 주기적 시각 회귀 점검. 백엔드 검증(ruff/pytest)의 프론트 대응물. **단, 1~2줄 스타일·단일 컴포넌트 변경엔 이 스킬(전량 fan-out) 금지** — CLAUDE.md UI 절의 렌더 확인(390/768/1440 스크린샷 1회)으로 충분(codebase-audit §0 하한과 대칭).
 ---
 
 # UI Audit — 픽셀을 본다
@@ -14,7 +14,7 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
 > 파일 없으면 `bash scripts/sync-machine.sh --plugin`으로 `~/.claude/workflows/` 배치. 그동안은 §1–6을 인터랙티브로.
 - 루프 의미론(트리거·survivor·정지·degraded·폴백)은 audit-loop.js 상단 LOOP CONTRACT 참조. dial: verifySeverities·maxRounds·analyzeModel·batchSize(rate-limit 예방)·critic(소규모는 false).
 - 티어링: 캡처·인벤토리=haiku(Explore) · 시각 감사=`model:'sonnet'` · 발견성·역할게이팅·흐름단절=`model:'opus'`(unit별 지정, 미지정은 analyzeModel 폴백) · verify/critic=reviewer · 종합=메인.
-- context에 design-side spec(페르소나·동선 step-budget·상태 인벤토리·마이크로카피 SSOT·접근성 예산 = 전역/프로젝트 CLAUDE.md의 UI 지침)을 반드시 넣는다 — 기준 없는 감사는 '안 깨졌나'만 본다.
+- context에 design-side spec(페르소나·동선 step-budget·상태 인벤토리·마이크로카피 SSOT·접근성 예산 = CLAUDE.md UI 절)을 반드시 넣는다 — 기준 없는 감사는 '안 깨졌나'만 본다.
 
 ## 절차
 
@@ -64,6 +64,6 @@ when_to_use: UI 기능을 "완료"하기 직전, 사용자가 화면 깨짐을 �
    - **완성도 critic(reviewer):** 안 본 페이지·뷰포트·역할·빈/초과 상태 1패스 재점검. 추가 체크 — 인터랙션 상태(§1) 미촬영 · 여정 레인(3-B) 생략 · 콜드스타트 빈 스택 미기동. 이 셋이 비면 findings 수와 무관하게 지적한다. critic이 낸 새 결함도 adversarial verify를 한 번 더 통과시켜 채택하고, maxRounds 내면 재캡처·재감사.
    - 실행형 골격: §0 참조.
 
-5. **구조적 처방** — 반복 결함은 페이지별 땜질 대신 공유 프리미티브로: `PageHeader` / `ResponsiveTable`(모바일 reflow) / `EmptyState` / 라벨 맵(SSOT). 디자인시스템 컴포넌트고 claude.ai/design 동기화가 필요하면 DesignSync(`/design-sync`, plan-then-approve, Pro/Max).
+5. **구조적 처방** — 반복 결함은 페이지별 땜질 대신 공유 프리미티브로: `PageHeader` / `ResponsiveTable`(모바일 reflow) / `EmptyState` / 라벨 맵(SSOT). 프리미티브를 claude.ai/design 디자인시스템에 올려 사용자가 캔버스에서 이어 다듬게 하려면 `DesignSync` — 컴포넌트 단위 증분(통째 교체 금지), `finalize_plan`으로 경로를 잠그고 승인받은 뒤에만 쓰기.
 
 6. **우선순위 findings + (선택) 회귀 baseline** — severity로 정렬 보고. critical/high 시각 결함은 종합 요약이 묻지 못한다. verify/critic 부분 실패로 audit-loop이 `degraded:true`를 반환하면 낙관 결론을 보류한다. 수정 후 재캡처로 회귀 확인, 핵심 화면은 baseline 저장. user-visible 변경이고 디자인 방향이 사용자 판단 사항이면 baseline↔수정 후 스크린샷을 before→after Artifact 보드로 발행(base64 embed, 경로 텍스트만은 결함). 1~2줄 CSS·저위험 변경은 render Read로 충분. 보드도 무손실 규칙 유지 — critical/high를 예쁘게 묻지 않는다.
