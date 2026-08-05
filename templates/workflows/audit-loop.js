@@ -8,7 +8,7 @@ export const meta = {
 //  survivor   = verdict ≠ 'refuted' 인 finding (verify 실패=error 는 confirmed 아님 → degraded 버킷).
 //  verify 트리거 = verifySeverities(기본 ['critical']) + severity=high 이면서 위험 표면(auth·권한·자금경로·
 //                 상태전이·마이그레이션·시크릿)인 finding. 미트리거 = 'unverified'(정책 skip, 실패 아님).
-//                 일반 high는 메인이 직접 판정한다 — reviewer 호출량 축소.
+//                 일반 high는 메인이 직접 판정한다 — reviewer 호출량 축소(0.9.16).
 //  verify 실패(throw/rate-limit) = 'error' → degraded[]에 격리, counts에 confirmed로 세지 않음, return.degraded=true.
 //  analyze 실패 = 해당 unit은 coveredUnits에서 제외하고 units_analyze_failed[]에 격리(위장 커버리지 금지) → return.degraded=true.
 //  critic 호출 실패(throw) = critic_failed=true(완성도 재점검 미수행) → return.degraded=true.
@@ -43,8 +43,8 @@ const analyzeModel = A.analyzeModel || 'sonnet'
 const verifyModel = A.verifyModel || 'opus'
 const criticModel = A.criticModel || 'opus'
 const maxRounds = Math.max(1, Math.min(4, A.maxRounds || 2))
-// verify 트리거: 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
-// 근거(실측): reviewer(opus)가 서브에이전트 세션의 단일 최대 소비처였고, 그 대부분이
+// verify 트리거(0.9.16): 기본을 critical/high → **critical + 위험 표면 high**로 좁혔다.
+// 근거(실측): reviewer(opus)가 서브에이전트 세션 1,634+로 단일 최대 소비처였고, 그 대부분이
 // '일반 high' verify였다. 일반 high는 메인(opus·xhigh, full context)이 직접 판정하는 편이 싸고 정확하다.
 // 위험 표면(auth·권한·자금경로·상태전이·마이그레이션·시크릿)의 high는 틀리면 비싸므로 계속 반증한다.
 // A.verifySeverities를 명시하면 그 값이 우선(override 경로 무손상) — 예전 동작은 ['critical','high'].
@@ -53,7 +53,7 @@ const RISK_SURFACE_RE = /auth|인증|권한|permission|rbac|role|token|session|s
 const isRiskSurface = (f) => RISK_SURFACE_RE.test(`${f.title || ''} ${f.where || ''} ${f.category || ''} ${f.impact || ''}`)
 // critical은 무조건 · high는 위험 표면일 때만 · (verifySev에 high를 명시했다면 첫 절이 이미 커버)
 const shouldVerify = (f) => verifySev.includes(f.severity) || (f.severity === 'high' && isRiskSurface(f))
-// critic auto-scale: 소규모 감사(≤2 유닛)엔 critic 기본 off — caller가 opt-out을 기억 안 해도 opus critic 낭비 없음.
+// critic auto-scale(0.8.3): 소규모 감사(≤2 유닛)엔 critic 기본 off — caller가 opt-out을 기억 안 해도 opus critic 낭비 없음.
 // 명시 지정(A.critic)은 항상 존중. 스킬 §0의 '소규모=critic:false' 권고를 워크플로에 baked-in.
 const useCritic = A.critic === undefined ? units0.length > 2 : A.critic !== false
 // batchSize: 한 라운드의 analyze fan-out을 N개 단위씩 끊어 실행(청크 사이 barrier) — 동시
@@ -69,7 +69,7 @@ const reviewerAgent = A.reviewerAgent === undefined ? 'reviewer' : A.reviewerAge
 // verify가 silent no-op(미검증 finding을 그냥 confirmed)으로 무너지지 않게(가짜 green 방지).
 let reviewerFallbacks = 0
 let reviewerFallbackWarned = false
-// 오류 분류: 예전엔 agentType 실패 시 '무조건' opus 모델로 폴백해, rate-limit/timeout류
+// 오류 분류(2026-07-18): 예전엔 agentType 실패 시 '무조건' opus 모델로 폴백해, rate-limit/timeout류
 // 일시적 오류에도 같은 비싼 opus를 즉시 재호출 → rate-limit을 되레 악화시켰다. 일시적 오류는 폴백하지 말고
 // rethrow해 상위(verifyOne/critic)가 DEGRADED로 격리하게 하고, agentType 미등록/미상 오류만 opus로 폴백
 // (verify가 silent no-op으로 무너져 미검증 finding을 confirmed로 흘리는 것 방지). read-only/effort 고정 상실은 폴백의 알려진 대가.
@@ -109,7 +109,22 @@ const FINDINGS = {
         required: ['title', 'severity', 'where', 'evidence', 'impact', 'recommendation', 'confidence'],
         properties: {
           title: { type: 'string' },
-          severity: { enum: ['critical', 'high', 'medium', 'low'] },
+          // 심각도 앵커(실측 기반). 예전엔 설명 없는 맨 enum이라 워커가 기준 없이 골랐고, 그 결과
+          // verify로 넘어간 critical/high 중 **88%가 medium/low로 하향**됐다(실측:
+          // adjust의 corrected_severity가 medium 48.5% + low 40.1%). 그 하향은 전부 opus reviewer
+          // 호출로 치러졌다 — 즉 가장 비싼 tier가 심각도 부풀리기를 되돌리는 데 쓰였다.
+          // 아래 앵커는 reviewer가 실제로 교정해 온 기준을 명문화한 것이다.
+          severity: {
+            enum: ['critical', 'high', 'medium', 'low'],
+            description: [
+              'critical = 데이터 손실·자금 손실·인증 우회가 평범한 입력으로 지금 재현되고 되돌리기 어렵다.',
+              'high = 위험 표면(auth·권한·자금·상태전이·마이그레이션·시크릿)에서 실제 사용자 경로로 재현된다. 조건이 특수하면 high가 아니라 medium.',
+              'medium = 실재하는 결함이나 조건이 제한적이거나(상한·가드·검증이 이미 있음) 영향이 기능 일부에 국한된다.',
+              'low = 개선 여지·중복·일관성·문서 drift — 지금 무언가를 깨뜨리고 있지는 않다.',
+              '교정 규칙: 상한·가드·파라미터 바인딩·재시도·타임아웃이 이미 있으면 그만큼 내린다. 확신이 없으면 한 단계 낮게 매긴다.',
+              '"이론상 가능"은 high가 아니다 — 재현 경로를 evidence에 못 쓰면 medium 이하.',
+            ].join(' '),
+          },
           where: { type: 'string', description: '파일:줄 또는 화면/위치' },
           evidence: { type: 'string', description: '실제로 읽고 본 것 — 추측 금지, 불확실하면 confidence를 낮춰 명시' },
           impact: { type: 'string' },
@@ -205,7 +220,7 @@ while (pending.length && round < maxRounds) {
 
   // canonical no-barrier: 단위별로 분석이 끝나는 즉시 그 단위의 verify가 돈다.
   // batchSize로 동시 분석 단위 수를 제한(청크 사이는 barrier) — API rate-limit cascade 회피.
-  // effort:'high' 명시 — 미지정이면 ultracode 세션의 xhigh를 전 analyze 워커가 상속해
+  // effort:'high' 명시(0.9.0, P1' 2축 배치) — 미지정이면 ultracode 세션의 xhigh를 전 analyze 워커가 상속해
   // fan-out 수만큼 사고 비용이 곱해진다. 정형 분석=high로 충분(verify/critic은 reviewer frontmatter가 high 고정 — 반증은 정밀도 과제라 그쪽은 안 올린다).
   const analyzeStage = (u) =>
     agent(`${CTX}\n${u.prompt}`, { label: `analyze:${u.key}`, phase: `Round ${round}`, schema: FINDINGS, model: u.model || analyzeModel, effort: A.analyzeEffort || 'high' })
@@ -285,11 +300,24 @@ const rank = { critical: 0, high: 1, medium: 2, low: 3 }
 confirmed.sort((a, b) => (rank[a.final_severity] ?? 9) - (rank[b.final_severity] ?? 9))
 degraded.sort((a, b) => (rank[a.final_severity] ?? 9) - (rank[b.final_severity] ?? 9))
 
-// verified/unverified 분리: confirmed[]에는 reviewer가 실제 통과시킨 것(confirmed/adjust)과,
+// verified/unverified 분리(2026-07-18): confirmed[]에는 reviewer가 실제 통과시킨 것(confirmed/adjust)과,
 // verifySeverities 미해당이라 애초에 verify를 안 돌린 것(unverified, medium/low 정책 skip)이 섞여 있었다.
 // findings만 보는 소비자가 unverified를 '검증 완료'로 오해하지 않도록 별도 배열로 분리해 노출(findings는 하위호환 union 유지).
 const verifiedFindings = confirmed.filter((f) => f.verify_state === 'confirmed' || f.verify_state === 'adjust')
 const unverifiedFindings = confirmed.filter((f) => f.verify_state === 'unverified')
+
+// 심각도 캘리브레이션 자기측정 — analyze가 주장한 severity가 verify에서 얼마나 내려갔나.
+// 왜: 심각도 앵커(FINDINGS.severity description)를 넣기 전 실측 baseline이 **88%**였다(journal 724건 —
+// verify로 올라간 critical/high 중 medium/low로 하향된 비율). 그 하향은 전부 opus reviewer 호출로
+// 치러졌으므로, 이 숫자가 안 내려가면 앵커가 안 먹은 것이다. 매 감사가 스스로 보고하게 둔다.
+const rankOf = (s) => ({ critical: 0, high: 1, medium: 2, low: 3 })[s] ?? 9
+const escalatedIn = verifiedFindings.filter((f) => rankOf(f.severity) <= 1)
+const downgraded = escalatedIn.filter((f) => rankOf(f.final_severity) >= 2)
+const downgradeRate = escalatedIn.length ? Math.round((100 * downgraded.length) / escalatedIn.length) : null
+if (downgradeRate !== null) {
+  log(`심각도 캘리브레이션: analyze가 critical/high로 올린 ${escalatedIn.length}건 중 ${downgraded.length}건(${downgradeRate}%)이 medium/low로 하향 — baseline 88%(앵커 도입 전).`)
+  if (downgradeRate >= 70) log(`  ⚠ 여전히 높다 — analyze 프롬프트/앵커가 안 먹고 있다. 하향분은 전부 reviewer(opus) 호출로 치러진 비용이다.`)
+}
 
 // LOOP CONTRACT: degraded(verify 실패)가 1건이라도 있으면 결과는 DEGRADED — 위임자는 낙관 top-line을 보류한다.
 if (degraded.length) log(`⚠ DEGRADED: ${degraded.length}건이 verify 실패로 미검증 — confirmed로 세지 않음. 낙관 결론 보류 권장.`)
@@ -315,6 +343,13 @@ return {
       verified: confirmed.filter((f) => f.verify_state === 'confirmed').length,
       adjusted: confirmed.filter((f) => f.verify_state === 'adjust').length,
       unverified_skipped: confirmed.filter((f) => f.verify_state === 'unverified').length,
+    },
+    // 이 감사에서 analyze가 심각도를 얼마나 부풀렸나(baseline 88%). 앵커가 먹으면 내려간다.
+    severity_calibration: {
+      escalated_by_analyze: escalatedIn.length,
+      downgraded_by_verify: downgraded.length,
+      downgrade_pct: downgradeRate,
+      baseline_pct: 88,
     },
     by_severity: {
       critical: confirmed.filter((f) => f.final_severity === 'critical').length,
