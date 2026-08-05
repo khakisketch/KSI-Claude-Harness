@@ -579,6 +579,70 @@ def cmd_smoke(args):
             fails.append(f"ksi-goals: set-kind --verification light 후 민감키워드 goal 실효 verification이 "
                          f"strict가 아님(={s6_verif}) — 하향 방지 붕괴")
 
+    # 훅에 박힌 `python3 -c '...'` 본문에 이스케이프 안 된 작은따옴표가 있는지.
+    # 실측: dead-config-guard의 python 주석에 '실제로 먹는 값' 처럼 따옴표를 썼더니 셸 문자열이
+    # 거기서 끊겨 스크립트가 잘렸고, `2>/dev/null`이 그 SyntaxError를 삼켜 훅이 **조용히 아무 일도 안 했다**.
+    # bash -n은 통과한다(따옴표 짝은 맞다). 잘린 본문이 우연히 컴파일되기도 해서 compile()로도 못 잡는다 —
+    # 유일하게 확실한 불변식은 "닫는 줄(맨 앞 ') 이전에 맨따옴표가 없어야 한다"이다.
+    for hp in sorted(glob.glob(os.path.join(HOOKS_DIR, "*.sh"))):
+        try:
+            src = open(hp, encoding="utf-8").read()
+        except OSError:
+            continue
+        pos, bad = 0, []
+        while True:
+            m = src.find("python3 -c '", pos)
+            if m < 0:
+                break
+            body_start = m + len("python3 -c '")
+            # 셸이 실제로 닫는 위치 = 이스케이프('\'')가 아닌 첫 맨따옴표.
+            i = body_start
+            while i < len(src):
+                if src[i] == "'":
+                    if src[i:i + 4] == "'\\''":
+                        i += 4
+                        continue
+                    break
+                i += 1
+            shell_end = i
+            if src[body_start] != "\n":
+                # 한 줄짜리 블록 — 같은 줄에서 닫히는 게 정상. 검사 대상 아님.
+                pos = shell_end + 1
+                continue
+            # 여러 줄 블록의 관례상 닫는 위치 = 맨 앞이 따옴표인 줄.
+            intended = src.find("\n'", body_start)
+            if intended < 0:
+                bad.append("닫는 따옴표 줄 없음")
+                break
+            if shell_end < intended:
+                line = src[:shell_end].count("\n") + 1
+                bad.append(f"{line}행에서 셸 문자열이 조기 종료(의도한 끝은 {src[:intended].count(chr(10)) + 2}행)")
+            pos = max(shell_end, intended) + 2
+        if bad:
+            fails.append(f"{os.path.basename(hp)}: 내장 python 본문에 이스케이프 안 된 작은따옴표 — "
+                         f"셸 문자열이 끊겨 훅이 조용히 죽는다 ({' · '.join(bad)})")
+    if not any("내장 python 본문" in f for f in fails):
+        # 위 검사가 실제로 탐지력이 있는지 — 픽스처로 확인한다. 파서를 고치다 오탐을 없애면서
+        # 탐지까지 같이 죽이기 쉬운 자리라(실제로 한 번 그랬다) '0건 보고'를 그대로 믿지 않는다.
+        with tempfile.TemporaryDirectory() as qfx:
+            os.makedirs(os.path.join(qfx, "scripts"))
+            q = chr(39)
+            open(os.path.join(qfx, "scripts", "bad.sh"), "w", encoding="utf-8").write(
+                f"#!/usr/bin/env bash\npython3 -c {q}\n# {q}따옴표{q}가 여기 있으면 끊긴다\nprint(1)\n{q} 2>/dev/null\n")
+            open(os.path.join(qfx, "scripts", "good.sh"), "w", encoding="utf-8").write(
+                f"#!/usr/bin/env bash\nv=$(python3 -c {q}import sys; print(sys.argv[1]){q} x)\n"
+                f"python3 -c {q}\nprint(2)\n{q} 2>/dev/null\n")
+            r = subprocess.run([sys.executable, os.path.abspath(__file__), "smoke"],
+                               capture_output=True, text=True, timeout=300,
+                               env=dict(os.environ, CLAUDE_PLUGIN_ROOT=qfx))
+            hit_bad = "bad.sh: 내장 python 본문" in r.stdout
+            hit_good = "good.sh: 내장 python 본문" in r.stdout
+        if hit_bad and not hit_good:
+            ok.append("훅[내장 python 본문 따옴표 무결성 + 탐지력 자가확인]")
+        else:
+            fails.append(f"따옴표 검사기 자가확인 실패(bad 탐지={hit_bad} · good 오탐={hit_good}) — "
+                         f"검사가 조용히 무력화되면 '무결성 OK'가 거짓 초록불이 된다")
+
     # consistency 검사기 자체의 회귀 — 드리프트를 심은 픽스처에서 3종이 실제로 발화하는지.
     # "불일치 0건" 보고는 정합이 좋아서일 수도, 검사기가 조용히 죽어서일 수도 있다(green≠작동).
     with tempfile.TemporaryDirectory() as fx:

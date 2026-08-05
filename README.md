@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.25-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.26-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 

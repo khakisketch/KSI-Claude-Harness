@@ -37,8 +37,11 @@ if [ "$skip_cons" -eq 0 ] && [ -f "${CLAUDE_PLUGIN_ROOT:-$HOME/.claude}/scripts/
   [ "$now" -gt 0 ] && printf '%s' "$now" > "$sentinel" 2>/dev/null
 fi
 
+# settings.local.json도 본다 — 같은 footgun을 넣을 수 있는데 예전엔 settings.json만 검사해서
+# 로컬 오버라이드로 죽은 엔드포인트를 강제해도 통과했다.
 cfg="$cwd/.claude/settings.json"
-if [ ! -f "$cfg" ]; then
+cfg_local="$cwd/.claude/settings.local.json"
+if [ ! -f "$cfg" ] && [ ! -f "$cfg_local" ]; then
   [ -z "$cons" ] && exit 0
   WARN="$cons" python3 -c '
 import os, json
@@ -47,12 +50,26 @@ print(json.dumps({"hookSpecificOutput":{"hookEventName":"SessionStart","addition
   exit 0
 fi
 
-warn="$(CFG="$cfg" python3 -c '
+warn="$(CFG="$cfg" CFG_LOCAL="$cfg_local" python3 -c '
 import os, json
-try:
-    d = json.load(open(os.environ["CFG"]))
-except Exception:
-    raise SystemExit  # 파싱 불가면 침묵(다른 도구 소관)
+def _load(p):
+    try:
+        return json.load(open(p)) if p and os.path.isfile(p) else None
+    except Exception:
+        return None  # 파싱 불가면 그 파일은 건너뛴다(다른 도구 소관)
+_main, _local = _load(os.environ["CFG"]), _load(os.environ["CFG_LOCAL"])
+if _main is None and _local is None:
+    raise SystemExit
+# local이 main을 덮으므로 병합해서 실제로 먹는 값을 본다(env는 키 단위 병합).
+# 주의: 이 python 본문은 셸의 python3 -c 작은따옴표 안에 있다 — 주석에도 작은따옴표를 쓰지 말 것.
+# 쓰면 셸 문자열이 거기서 끊겨 스크립트가 잘리고, 2>/dev/null이 그 에러를 삼켜 훅이 조용히 죽는다.
+d = dict(_main or {})
+if _local:
+    merged_env = dict((d.get("env") or {}))
+    merged_env.update(_local.get("env") or {})
+    d.update(_local)
+    if merged_env:
+        d["env"] = merged_env
 issues = []
 env = d.get("env") or {}
 base = str(env.get("ANTHROPIC_BASE_URL", "") or "")
@@ -69,7 +86,8 @@ for v in (env.get("ANTHROPIC_MODEL", ""), env.get("ANTHROPIC_SMALL_FAST_MODEL", 
 if models:
     issues.append("로컬 모델 매핑 잔존: %s" % ", ".join(models))
 if issues:
-    print("⚠ dead-config 경고 — 이 프로젝트 `.claude/settings.json`:\n- " + "\n- ".join(issues)
+    srcs = [n for n, v in (("settings.json", _main), ("settings.local.json", _local)) if v is not None]
+    print("⚠ dead-config 경고 — 이 프로젝트 `.claude/" + "` + `".join(srcs) + "`:\n- " + "\n- ".join(issues)
           + "\n(전역 doctrine: 로컬 LLM은 하네스 용도로 쓰지 않는다. 이 설정은 세션을 깨거나 권한을 우회시킬 수 있음 — 제거를 권장.)")
 ' 2>/dev/null)"
 
