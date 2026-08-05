@@ -401,6 +401,23 @@ def cmd_smoke(args):
         }}, "expect_silent", "의존성무변경", 15),
     ]
 
+    # ui-checkpoint-nudge: 경로가 유일한 게이트라 오탐 방어가 전부 정규식에 있다 — 그래서 회귀 테스트가 필수다.
+    # 핵심 위험은 '백엔드 파일을 화면으로 오판'(그러면 worker가 멈출 이유가 없는데 멈춤 신호를 받는다):
+    # routes/·views/는 Express·Django에도 흔해서 프론트 확장자 게이트가 유일한 방어선이다.
+    # session_id를 케이스마다 다르게 줘야 파일당-1회 dedup과 세션캡 3회가 서로를 오염시키지 않는다.
+    _uic = "".join(random.choice(string.ascii_lowercase + string.digits) for _ in range(8))
+    pos += [
+        ("ui-checkpoint-nudge.sh", {"tool_name": "Write", "session_id": f"smoke-uic-a-{_uic}",
+                                    "tool_input": {"file_path": "/p/app/dashboard/page.tsx"}},
+         "expect_fire", "신규화면(app router page)"),
+        ("ui-checkpoint-nudge.sh", {"tool_name": "Write", "session_id": f"smoke-uic-b-{_uic}",
+                                    "tool_input": {"file_path": "/p/routes/users.js"}},
+         "expect_silent", "백엔드 routes(.js) 오탐 없음"),
+        ("ui-checkpoint-nudge.sh", {"tool_name": "Write", "session_id": f"smoke-uic-c-{_uic}",
+                                    "tool_input": {"file_path": "/p/src/components/ui/button.tsx"}},
+         "expect_silent", "UI 프리미티브 제외"),
+    ]
+
     # ui-render-check / backend-verify-check: 둘 다 '이 세션 transcript의 미커밋 Edit'을 git과 교차해서 판단하므로
     # 실 git 저장소 + 가짜 transcript.jsonl이 필요하다(git 없으면 이 두 훅은 항상 graceful 침묵이라 정발화를 못 만든다).
     if shutil.which("git"):
