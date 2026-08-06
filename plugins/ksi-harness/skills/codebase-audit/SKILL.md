@@ -34,7 +34,7 @@ canonical 호출: `Workflow({scriptPath: '~/.claude/workflows/audit-loop.js', ar
 - **운영조건/fault-injection** (`model:'opus'`) — 런타임 실패 모드: 외부의존(외부 API·결제·소켓·큐)·상태기계면 타임아웃·부분실패·에러코드·rate-limit·재연결·동시성. 스테이징이 구조적으로 못 보는 환경분기는 'done'이 아니라 '실환경 카나리 전 unknown'으로 표기.
 - workflow: `agent(prompt, {model: 'sonnet', effort: 'high', schema})` — effort 명시(미지정이면 세션 effort 상속, fan-out 수만큼 비용 곱해짐).
 - 인터랙티브: Agent(model:'sonnet')로 직접 호출(전용 subagent 없음 — model 직접 지정).
-- 어뷰징·무결성/운영조건·fault-injection 렌즈만 opus 라우팅(판단 기준은 렌즈 난이도, effort 아님). 재검토 TTL: 분기 1회 paired-run 재실측.
+- 어뷰징·무결성/운영조건·fault-injection 렌즈만 opus 라우팅(판단 기준은 렌즈 난이도, effort 아님).
 
 ## 4. adversarial 검증 — opus tier (생략 금지)
 verify 트리거에 걸린 finding(기본·확장 규칙은 LOOP CONTRACT가 SSOT)을 다른 에이전트가 반증 — 실제 파일/근거 재확인, 거짓양성·과장·지어낸 명령/경로 제거. 살아남은 것만 채택. 불확실하면 보수적으로 의심.

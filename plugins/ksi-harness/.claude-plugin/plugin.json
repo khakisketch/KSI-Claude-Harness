@@ -1,7 +1,7 @@
 {
   "name": "ksi-harness",
   "description": "ultracode-first 멀티에이전트 워크플로 하네스 — 7 스킬(codebase-audit·ui-audit·deep-interview·debug·review-core·release-risk·goals) + 에이전트(Explore=Haiku read-only 탐색·Plan=Opus read-only 사전판단·reviewer=Opus read-only 사후검증, 구현은 메인 직접) + 검증 게이트 훅(파괴적 명령·git push 시크릿 하드가드부터 dead-config·착수 게이트·verify 알림까지 — 개수와 전체 목록은 README가 SSOT) + 세션 시작 업데이트 알림. goals=durable goal-ledger(목표를 제품/보완/결정으로 분류해 `report`로 사람용 현황을 내고, 완료는 증거 게이트로만 인정 — 위험 표면은 강도가 자동 승격되고 하향 불가, 인터랙티브 진행). nextgen: 자기측정(harness-selfcheck.py)·durable state(프로젝트 두뇌). 모델 티어링·adversarial 검증·검증 게이트가 스킬/에이전트에 baked-in. main-agnostic(Fable/Opus 어느 메인이든 동작).",
-  "version": "0.9.35",
+  "version": "0.9.36",
   "author": {
     "name": "KSI"
   }

@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.35-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.36-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 
@@ -467,8 +467,6 @@ scripts/test-hooks.sh ~/.claude/hooks # ★ 실제로 돌아가는 훅(live) —
 | 워크플로 | 역할 |
 |---|---|
 | `audit-loop.js` | 병렬 분석 → 교차 검증 → 빠진 것 재점검 수렴 루프 (감사 스킬의 실행 골격) |
-| `paired-run.js` | "싼 모델이 이 작업에서 비싼 모델을 대체할 수 있나" 통제 비교 |
-| `reviewer-calibration.js` | 검증자가 물러졌는지(러버스탬프) 함정 문제로 측정 |
 
 </details>
 
