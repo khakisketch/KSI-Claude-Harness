@@ -14,7 +14,7 @@
 
 | | 어디로 | 무엇 |
 |---|---|---|
-| 플러그인 번들 | Claude Code 내부 | 스킬 7 · 에이전트 3 · 훅 |
+| 플러그인 번들 | Claude Code 내부 | 스킬 4 · 에이전트 2 · 훅 |
 | 워크플로·스크립트 | `~/.claude/{workflows,scripts,templates}` | 감사·목표 워크플로, 캡처·원장 도구 |
 | 전역 지침 | `~/.claude/CLAUDE.md` | 없을 때만 자동 생성 |
 

@@ -5,7 +5,7 @@
 ## 원작자 기본 구성 (권장값)
 - `~/.bashrc` alias로 `claude` 실행 시 **`--dangerously-skip-permissions`(권한 프롬프트 전부 끔) + ultracode(xhigh+workflow 자동)** 상시 ON.
 - `settings.json`에 `skipDangerousModePermissionPrompt` + `skipAutoPermissionPrompt`.
-- **permission deny-list 없음**(backstop 0). 유일한 안전망 = 모델의 자기절제 + doctrine의 의사결정 3레인(되돌리기 어려운 실행·외부전송은 대표자 결정 레인 — 먼저 확인).
+- **permission deny-list 없음**(backstop 0). 유일한 안전망 = 모델의 자기절제 + doctrine("알아서 진행은 되돌리기 어려운 실행까지 승인한 게 아니다" — 대상·환경이 특정된 승인만 유효).
 
 ## 왜 이렇게 쓰나 (맥락)
 - 개인 **개발 전용 머신**에서, 끝까지 자율 실행을 강하게 선호하는 1인 워크플로에 최적화됨.
@@ -13,7 +13,7 @@
 
 ## 팀이 따져야 할 것 (정직한 trade-off)
 1. **passwordless sudo 증폭:** 에이전트 계정에 passwordless sudo가 있으면 dangerous mode와 곱해져 blast radius가 워크스페이스 → 호스트 전역이 된다. 에이전트 머신에서 sudo를 좁히는 걸 권장.
-2. **소프트 게이트의 한계:** "되돌리기 어려운 작업은 먼저 확인"은 모델이 스스로 지켜야 발동한다. deny-list 같은 하드 차단은 없다. 워크플로 fan-out 워커도 dangerous를 상속하므로 push/배포/마이그레이션을 자율 실행할 수 있다(워커 프롬프트에 "되돌리기 어려운 작업=메인 에스컬레이트"가 baked-in 돼 있으나 권한 강제는 아님).
+2. **소프트 게이트의 한계:** "되돌리기 어려운 작업은 먼저 확인"은 모델이 스스로 지켜야 발동한다. deny-list 같은 하드 차단은 없다. 위임한 서브에이전트(Explore·reviewer)도 dangerous를 상속하지만 둘 다 read-only 계약이라 push/배포/마이그레이션 같은 되돌리기 어려운 실행 자체는 메인이 직접 한다 — 위임 경로로 이 확인을 우회할 수 없다.
 3. **플러그인 훅 = 임의 셸 실행:** 이 플러그인의 훅(`ruff-check.sh`, `ui-render-check.sh`)을 포함해, 모든 플러그인 훅은 셸 스크립트를 돌린다. 설치 전 스크립트를 읽고 신뢰를 판단한다(여기 둘은 read-mostly·advisory·graceful-skip이며 파일을 수정하지 않는다).
 
 ## 더 안전하게 쓰고 싶다면 (opt-out / 보강)

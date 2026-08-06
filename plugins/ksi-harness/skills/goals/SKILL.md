@@ -45,7 +45,7 @@ $G set-kind --id G001 --kind product|hardening|decision [--verification light|st
 **강제되는 것**: 증거 없는(공백 포함) pass 불가 · `--kind` 없는 register 불가 · 위험 키워드 매칭 시 strict 자동 승격(하향 불가) · strict의 `--reviewer` 필수 · 전이 가드(gate는 in_progress에서만, completed는 invalidate로만 탈출) · refuted/degraded는 증거를 비워 새 attempt 강제 · gate 없이 attempt 3회 초과 반복 시 `ungated_attempts` 경고(비차단 넛지).
 **강제 안 되는 것**: reviewer를 실제로 spawn했는지, `--reviewer`에 진짜 검증 주체를 적었는지(헬퍼는 I/O만). 우회한 가짜 pass는 다음 세션 `invalidate`로 잡는다.
 
-`completion_criteria`는 deep-interview 합의 spec의 수용기준을 그대로 쓴다(`register --criteria`). **전체 CI·전체 테스트를 여기 넣지 않는다** — goal 완료 조건이 아니라 병합·릴리즈 체크포인트의 일이다.
+`completion_criteria`는 합의된 수용기준(brainstorming spec 또는 인라인 합의)을 그대로 쓴다(`register --criteria`). **전체 CI·전체 테스트를 여기 넣지 않는다** — goal 완료 조건이 아니라 병합·릴리즈 체크포인트의 일이다.
 
 ## 흐름
 `report` 복원 → `start` → 작업 → `attempt` → (강도별 검증) → `gate pass`/refuted 반복 → 다음 목표.

@@ -336,7 +336,7 @@ def build_parser():
     # risk 레코드(제품 안전망 — risk lifecycle): goal과 lifecycle이 다르다 —
     # risk는 fix(→goal)뿐 아니라 **accept(baseline로 수용, 근거 필수)**라는 종단이 있다.
     # goals.json 안 risks[]로(같은 lock·save 재사용, 린함). completion 술어를 오염시키지 않게 분리.
-    ra = sub.add_parser("risk-add", help="제품 리스크 기록(open) — codebase-audit/release-risk 렌즈가 호출")
+    ra = sub.add_parser("risk-add", help="제품 리스크 기록(open) — codebase-audit 렌즈가 호출")
     ra.add_argument("--id", required=True)
     ra.add_argument("--title", required=True)
     ra.add_argument("--lens", required=True, choices=["role", "economic", "gaming", "time-axis", "db", "secret", "other"])

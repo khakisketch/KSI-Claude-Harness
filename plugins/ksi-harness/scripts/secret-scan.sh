@@ -120,7 +120,7 @@ if not is_excluded:
                 msg = "파괴적 마이그레이션 DDL: " + ", ".join(ddl) + "."
                 if not re.search(r"(?i)(downgrade|rollback|def down|-- *down)", text):
                     msg += " 롤백/downgrade 경로가 안 보입니다."
-                msg += " 마이그레이션=되돌리기 어려운 작업(대표자 결정 레인): 롤백·다운타임·기존데이터 영향을 확인하세요. → 롤아웃·롤백·blast radius 점검은 /release-risk"
+                msg += " 마이그레이션=되돌리기 어려운 작업(대표자 결정 레인): 롤백·다운타임·기존데이터 영향을 확인하세요."
                 findings.append(msg)
 
 if not findings:

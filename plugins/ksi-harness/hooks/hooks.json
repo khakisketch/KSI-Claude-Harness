@@ -40,11 +40,6 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/ui-checkpoint-nudge.sh",
             "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/debug-loop-nudge.sh",
-            "timeout": 10
           }
         ]
       },
