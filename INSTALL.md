@@ -30,7 +30,7 @@
 ls ~/.claude/skills ~/.claude/agents 2>/dev/null | head
 ```
 
-`codebase-audit`·`Plan`·`reviewer` 같은 이름이 이미 보이면 **플러그인을 설치하지 않는다** —
+`codebase-audit`·`reviewer` 같은 이름이 이미 보이면 **플러그인을 설치하지 않는다** —
 스킬이 두 벌로 뜨고 같은 훅이 2회 발화한다. 사용자에게 알리고, 갱신을 원하면 아래
 "repo clone 방식"으로 안내한다.
 

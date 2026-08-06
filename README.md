@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.40-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.41-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 
@@ -229,27 +229,20 @@ JSON을 직접 손대지 마세요(분류를 고칠 땐 `set-kind`). 되돌릴 �
 | `goals` | 세션을 넘는 작업 장부 — "완료"는 증거 확인 후에만 |
 | `release-risk` | 배포·마이그레이션 전 위험 점검 |
 
-### 에이전트 — 현장의 세 사람
+### 에이전트 — 현장의 두 사람
 
-도메인 전문가가 아니라 비용과 문맥을 격리하기 위한 모델 등급입니다. **구현은 메인이 직접 합니다** — 나머지 셋은 메인이 판단·조사·검증을 넘기는 자리입니다.
+도메인 전문가가 아니라 비용과 문맥을 격리하기 위한 모델 등급입니다. **구현·설계 판단은 전부 메인이 직접 합니다** — 나머지 하나만 메인이 조사를 넘기는 자리이고, reviewer는 주로 워크플로가 스크립트로 부릅니다.
 
 <table>
 <tr>
-<td colspan="2" align="center">
+<td align="center">
 <img src="assets/characters/reviewer.png" width="300" alt="reviewer — 흰 안전모를 쓴 감리"><br/>
 <b><code>reviewer</code></b> · ⚪ 흰 안전모 · <b>감리</b><br/>
 <code>Opus</code> · <code>high</code> · <i>구조적 read-only</i><br/>
 <sub>도면 대비 검측하고 아니면 <b>반려</b>한다 — <b>"이거 진짜 맞아?"</b><br/>
 주로 <code>codebase-audit</code> 같은 감사 워크플로 안에서 스크립트가 부른다.</sub>
 </td>
-</tr>
-<tr>
-<td width="50%" align="center">
-<b><code>Plan</code></b> · 🟣 보라 안전모 · 설계 자문<br/>
-<code>Opus</code> · <code>high</code> · <i>read-only</i><br/>
-<sub>아직 안 지은 도면을 검토한다 — <b>"이 방향 맞아?"</b><br/>reviewer와 반대축: reviewer는 사후, Plan은 사전.</sub>
-</td>
-<td width="50%" align="center">
+<td align="center">
 <img src="assets/characters/explore.png" width="190" alt="Explore — 파란 안전모를 쓴 신입 조사원"><br/>
 <b><code>Explore</code></b> · 🔵 파란 안전모 · 신입 조사원<br/>
 <code>Haiku</code> · <code>low</code> · <i>소스 미변경</i><br/>
@@ -260,7 +253,7 @@ JSON을 직접 손대지 마세요(분류를 고칠 땐 `set-kind`). 되돌릴 �
 
 메인은 사용자가 세션마다 고릅니다. 판단·구현·오케스트레이션을 전부 담당하며, 하네스는 어떤 메인 모델도 가정하지 않습니다.
 
-이전엔 구현 전용 `worker`(Sonnet)가 따로 있었습니다. 메인과 권한이 사실상 같고(재귀 위임·외부발행·웹조회만 없었음) tier도 같아지면서, 위임 왕복 비용만 남아 없앴습니다 — 진짜 병렬·기계적 대량 변경이 필요하면 그때 즉석으로 부릅니다.
+이전엔 구현 전용 `worker`(Sonnet)와 사전판단 전용 `Plan`(Opus)이 따로 있었습니다. 둘 다 실제 호출 이력을 확인해보니 — worker는 메인과 권한이 사실상 같아 위임 왕복 비용만 남았고, Plan은 만든 뒤로 단 한 번도 안 불렸습니다. 둘 다 없앴습니다 — 필요하면 그때 `general-purpose`나 `Agent(model:'opus')`로 즉석 호출합니다.
 
 ### 훅 — 자동으로 발화하는 검사
 
@@ -298,19 +291,17 @@ flowchart LR
     REQ([요청]) --> MAIN
     MAIN[메인<br/>판단·구현·통합]
     MAIN <-->|조사 · 결론만 회신| EX[Explore · Haiku]
-    MAIN <-->|막힌 판단 하나| PL[Plan · Opus]
     MAIN -.->|주로 워크플로 내부| RV[reviewer · Opus]
     MAIN --> DONE([완료])
     MAIN -.->|되돌릴 수 없는 명령| HOOK[훅이 차단]
 
     style EX fill:#0c4a6e,stroke:#38bdf8,color:#e0f2fe
-    style PL fill:#3b0764,stroke:#a855f7,color:#f3e8ff
     style RV fill:#4c1d95,stroke:#a78bfa,color:#ede9fe
     style HOOK fill:#7f1d1d,stroke:#ef4444,color:#fee2e2
     style DONE fill:#14532d,stroke:#22c55e,color:#dcfce7
 ```
 
-세 자리 다 **서로를 부르지 않습니다.** 전부 메인을 거칩니다 — 다른 에이전트를 띄우는 도구가 차단돼 있어 구조적으로 불가능합니다.
+둘 다 **서로를 부르지 않습니다.** 전부 메인을 거칩니다 — 다른 에이전트를 띄우는 도구가 차단돼 있어 구조적으로 불가능합니다.
 
 메인의 문맥은 깨끗하게 유지됩니다. 조사 에이전트가 파일을 아무리 훑어도 그 원문은 메인에 들어오지 않고 결론만 돌아옵니다.
 
