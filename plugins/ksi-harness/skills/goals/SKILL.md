@@ -50,11 +50,3 @@ $G set-kind --id G001 --kind product|hardening|decision [--verification light|st
 ## 흐름
 `report` 복원 → `start` → 작업 → `attempt` → (강도별 검증) → `gate pass`/refuted 반복 → 다음 목표.
 **사용자가 "현황·어디까지 됐나"를 물으면 `report`다.** `status`의 내부 어휘(`proposed`·`in_progress`·`actionable`·`gate PASS`)를 그대로 옮기지 않는다 — 그건 검증 시스템의 상태지 제품의 상태가 아니다.
-
-## `/goals run` — 자율 실행 (evidence-gated)
-실물화: `~/.claude/workflows/goals-run.js`(native는 saved workflow로 자동등록 · 플러그인 머신은 `/ksi-setup`이 `~/.claude/workflows/`에 배치).
-`args: {dir(프로젝트 경로, 필수), maxGoals(세션 예산, 기본 6·천장 20), context}`.
-동작 계약(종료조건·red-lane·evidence-gate·세션-경계 stitching)은 `goals-run.js` 상단 RUN CONTRACT 주석이 SSOT.
-**게이트 시점만 3분기한다(강도로 검증을 생략하는 게 아니다 — 자기신고로 completed 되는 경로는 없다):**
-① 위험 표면(strict 또는 `STRICT_RE` 매칭) = 즉시 게이트 · ② 화면 표면(`UI_SURFACE_RE`) = 게이트 미실행, 사용자가 실제 화면을 볼 때까지 `in_progress` 유지(reviewer는 "원한 화면인가"를 criteria로 판정할 수 없다) · ③ 나머지 = 배치 큐에 모아 루프 종료 후 **reviewer 1회**(목표 간 상호작용도 함께 검수).
-`kind:decision`은 애초에 실행 대상이 아니라 사람에게 넘긴다.

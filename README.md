@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.34-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.35-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 
@@ -185,7 +185,6 @@ bash scripts/sync-machine.sh        # 모드 자동 감지 (Windows는 git-bash)
 
 ```console
 /goals          원장을 만들거나, 지금 상태를 보거나, 목표를 등록합니다
-/goals run      남은 목표를 증거 게이트로만 자율 소진합니다
 ```
 
 목표는 등록할 때 **세 종류 중 하나로 분류해야 합니다**(생략 불가) — 사용자가 쓸 수 있게 되는
@@ -241,7 +240,7 @@ JSON을 직접 손대지 마세요(분류를 고칠 땐 `set-kind`). 되돌릴 �
 <b><code>reviewer</code></b> · ⚪ 흰 안전모 · <b>감리</b><br/>
 <code>Opus</code> · <code>high</code> · <i>구조적 read-only</i><br/>
 <sub>도면 대비 검측하고 아니면 <b>반려</b>한다 — <b>"이거 진짜 맞아?"</b><br/>
-주로 <code>/goals run</code>·감사 워크플로 안에서 스크립트가 부른다.</sub>
+주로 <code>codebase-audit</code> 같은 감사 워크플로 안에서 스크립트가 부른다.</sub>
 </td>
 </tr>
 <tr>
@@ -468,7 +467,6 @@ scripts/test-hooks.sh ~/.claude/hooks # ★ 실제로 돌아가는 훅(live) —
 | 워크플로 | 역할 |
 |---|---|
 | `audit-loop.js` | 병렬 분석 → 교차 검증 → 빠진 것 재점검 수렴 루프 (감사 스킬의 실행 골격) |
-| `goals-run.js` | 작업 장부 목표를 증거 게이트로만 자율 소진 (위험 작업은 사람에게) |
 | `paired-run.js` | "싼 모델이 이 작업에서 비싼 모델을 대체할 수 있나" 통제 비교 |
 | `reviewer-calibration.js` | 검증자가 물러졌는지(러버스탬프) 함정 문제로 측정 |
 
