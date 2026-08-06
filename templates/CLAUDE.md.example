@@ -18,9 +18,10 @@
 | 역할 | model | effort |
 |---|---|---|
 | 탐색·조사·요약 · 검증 명령 실행(lint·test·build) | `haiku` | low |
-| 구현·리팩터·테스트 | `sonnet` | xhigh |
-| 설계 판단·코드리뷰·미묘한 버그·반증 검증 | `opus` | high |
-| 되돌리기 비싼 최종 판정·오케스트레이션 | 메인(미지정 inherit) | 세션값 |
+| 사전 설계 판단(구현 전) | `opus` | high |
+| 구현·리팩터·테스트(파일 다수·병렬·기계적 대량 변경일 때만) | `sonnet` | xhigh |
+| 사후 반증 검증 | `opus` | high |
+| 되돌리기 비싼 최종 판정·오케스트레이션·일반 구현 | 메인(미지정 inherit) | 세션값 |
 
 - **검증에서 effort는 품질 노브가 아니라 coverage↔precision 다이얼이다** — 높일수록 더 많이 찾되 덜 정확해진다. per-finding 반증은 `high`, 재현율이 필요한 완성도 critic만 `agent({model:'opus', effort:'xhigh'})`로 올린다. 검증자를 producer보다 강하게 두라는 규칙은 없다 — 필요한 건 강함이 아니라 fresh context다.
 - 모델은 **alias로만** 지정한다(`'opus'`/`'sonnet'`/`'haiku'`) — 풀 모델 ID를 박으면 세대교체·플랜 차이에 깨진다. 레버: workflow `agent({model, effort})` · Agent per-spawn `model` · 서브에이전트 frontmatter(`worker`=sonnet xhigh, `reviewer`=opus high read-only — 세션 설정과 무관하게 고정되는 경로).

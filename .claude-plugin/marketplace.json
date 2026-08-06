@@ -10,7 +10,7 @@
       "name": "ksi-harness",
       "source": "./plugins/ksi-harness",
       "description": "ultracode-first 멀티에이전트 워크플로 하네스 (스킬·tier 워커·검증 게이트 훅·goal-ledger·업데이트 알림). doctrine 템플릿·권장 설정은 repo의 templates/ 참조.",
-      "version": "0.9.30"
+      "version": "0.9.32"
     }
   ]
 }
