@@ -10,7 +10,7 @@ when_to_use: substantive한 코드 감사·병렬 분석이 필요할 때 — �
 - 작은 substantive: 워커 1개 + 검증 1패스.
 - 중간: 모듈 N개 = 워커 N개, adversarial 1패스.
 - 큰 감사: fan-out + adversarial(새 finding 마를 때까지, maxRounds dial — 기본값 SSOT=audit-loop.js LOOP CONTRACT) + 완성도 critic. critic이 미탐색 단위를 반환하면 상한 내에서 다음 라운드 analyze fan-out으로 재투입(§5).
-- 단일 파일·1~2줄 변경엔 이 스킬 금지 — 직접 또는 worker 1개.
+- 단일 파일·1~2줄 변경엔 이 스킬 금지 — 직접.
 
 ## 0.5 재사용 루프 골격
 `pipeline(units, analyze, verify)` = 고정 깊이 단발(analyze 1패스 + verify 1패스). 완성도가 필요한 큰 감사는 §5의 critic→verify→재투입 루프를 얹는다.
@@ -33,7 +33,7 @@ canonical 호출: `Workflow({scriptPath: '~/.claude/workflows/audit-loop.js', ar
 - **어뷰징·무결성 불변식** (`model:'opus'`) — 프로젝트 CLAUDE.md `## 도메인 불변식`(스캐폴딩: `~/.claude/templates/domain-invariants.example.md`) 우선, 없으면 README/docs 또는 사용자 확인. 보안(auth/IDOR/injection)과 분리 — '인증상 허용되나 비즈니스룰상 금지'. 4클래스(역할겸직·경제무결성·게이밍·시간축권한)·음성 케이스(self/cross/replay/state-change-after) = 전역/프로젝트 CLAUDE.md '## 작업 방식'의 'green ≠ 금지된 일이 막혔다' 원칙 참조.
 - **운영조건/fault-injection** (`model:'opus'`) — 런타임 실패 모드: 외부의존(외부 API·결제·소켓·큐)·상태기계면 타임아웃·부분실패·에러코드·rate-limit·재연결·동시성. 스테이징이 구조적으로 못 보는 환경분기는 'done'이 아니라 '실환경 카나리 전 unknown'으로 표기.
 - workflow: `agent(prompt, {model: 'sonnet', effort: 'high', schema})` — effort 명시(미지정이면 세션 effort 상속, fan-out 수만큼 비용 곱해짐).
-- 인터랙티브: Task로 `subagent_type: worker` spawn.
+- 인터랙티브: Agent(model:'sonnet')로 직접 호출(전용 subagent 없음 — model 직접 지정).
 - 어뷰징·무결성/운영조건·fault-injection 렌즈만 opus 라우팅(판단 기준은 렌즈 난이도, effort 아님). 재검토 TTL: 분기 1회 paired-run 재실측.
 
 ## 4. adversarial 검증 — opus tier (생략 금지)

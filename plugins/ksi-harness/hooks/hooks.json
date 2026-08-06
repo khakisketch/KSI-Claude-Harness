@@ -107,17 +107,6 @@
         ]
       }
     ],
-    "SubagentStop": [
-      {
-        "matcher": "worker",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/worker-verify-nudge.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
+    "SubagentStop": []
   }
 }

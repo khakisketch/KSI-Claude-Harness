@@ -310,7 +310,6 @@ def cmd_smoke(args):
         "goal-status.sh": {"cwd": "/tmp"},
         "ui-render-check.sh": {"session_id": "smoke", "transcript_path": "/nonexistent"},
         "backend-verify-check.sh": {"session_id": "smoke", "transcript_path": "/nonexistent"},
-        "worker-verify-nudge.sh": {"agent_type": "reviewer", "session_id": "smoke"},
     }
     for name, stdin_obj in benign.items():
         path = os.path.join(HOOKS_DIR, name)

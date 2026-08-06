@@ -1,7 +1,7 @@
 ---
 name: review-core
 description: 완성된 변경을 통째로 검토하는 기준. 요구사항 정합·코드 품질·아키텍처·테스트·프로덕션 준비도 5축으로 보고 severity별 이슈와 판정을 낸다. reviewer가 diff-review 모드로 호출될 때 로드한다.
-when_to_use: '"이 변경을 검토하라"는 요청을 받았을 때(개별 finding 반증이 아니라 변경 전체). 위험 표면(auth·마이그레이션·동시성·자금경로)이 걸린 변경, 또는 worker 산출물을 인수하기 전. 단일 finding이 진짜인지 묻는 것이면 이 스킬이 아니라 per-finding verify 모드다.'
+when_to_use: '"이 변경을 검토하라"는 요청을 받았을 때(개별 finding 반증이 아니라 변경 전체). 위험 표면(auth·마이그레이션·동시성·자금경로)이 걸린 변경, 또는 변경을 인수하기 전. 단일 finding이 진짜인지 묻는 것이면 이 스킬이 아니라 per-finding verify 모드다.'
 ---
 
 # Review Core — 변경 전체 검토 기준
