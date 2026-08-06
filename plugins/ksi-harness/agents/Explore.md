@@ -2,7 +2,6 @@
 name: Explore
 description: 소스를 고치지 않고 근거만 가져오는 evidence 에이전트(저비용 haiku tier). 두 mode — **inspect**(코드베이스 sweep·호출 경로 추적·설정과 외부 문서 조회. 읽을 건 많고 결론은 짧은 일을 맡아 원문이 위임자 context에 들어가지 않게 막는다) · **run**(프로젝트가 이미 정의한 lint·typecheck·test·build·재현 명령을 실행해 성공·실패와 실패 위치만 돌려준다). 위치를 찾고 결과를 보고할 뿐 검토·감사·판정은 하지 않는다.
 model: haiku
-effort: low
 maxTurns: 20
 disallowedTools: Agent, Artifact, ExitPlanMode, Edit, Write, NotebookEdit
 ---
