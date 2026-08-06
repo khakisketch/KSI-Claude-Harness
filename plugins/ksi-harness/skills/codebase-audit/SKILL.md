@@ -7,8 +7,8 @@ when_to_use: substantive한 코드 감사·병렬 분석이 필요할 때 — �
 # Codebase Audit — 병렬 감사 → adversarial 검증 → 종합
 
 ## 0. 스코프 dial (먼저)
-- 작은 substantive: 워커 1개 + 검증 1패스.
-- 중간: 모듈 N개 = 워커 N개, adversarial 1패스.
+- 작은 substantive: 에이전트 1개 + 검증 1패스.
+- 중간: 모듈 N개 = 에이전트 N개, adversarial 1패스.
 - 큰 감사: fan-out + adversarial(새 finding 마를 때까지, maxRounds dial — 기본값 SSOT=audit-loop.js LOOP CONTRACT) + 완성도 critic. critic이 미탐색 단위를 반환하면 상한 내에서 다음 라운드 analyze fan-out으로 재투입(§5).
 - 단일 파일·1~2줄 변경엔 이 스킬 금지 — 직접.
 
@@ -19,13 +19,13 @@ canonical 호출: `Workflow({scriptPath: '~/.claude/workflows/audit-loop.js', ar
 파일 부재 시 → `/ksi-setup`(플러그인 설치) 또는 `bash scripts/sync-machine.sh --plugin`(repo clone)으로 `~/.claude/workflows/`에 배치, 그동안은 LOOP CONTRACT대로 §1–6을 인터랙티브 수행.
 
 ## 1. 분해
-대상을 독립 단위로 나눈다(모듈/레포/레이어/관심사). 각 단위 = 한 워커의 몫.
+대상을 독립 단위로 나눈다(모듈/레포/레이어/관심사). 각 단위 = 에이전트 하나의 몫.
 
 ## 2. 인벤토리 — Haiku tier
 **Explore**(read-only·Haiku)로 각 단위의 파일 인벤토리·grep 인덱싱·진입점을 수집. 결론만 받는다 — "무엇이 어디에 있나".
 
 ## 3. 분석 fan-out — Sonnet tier
-단위별 워커가 병렬 분석. diverse-lens, 각 렌즈 한 줄씩(욱여넣으면 context 압박 시 silent drop):
+단위별로 에이전트가 병렬 분석. diverse-lens, 각 렌즈 한 줄씩(욱여넣으면 context 압박 시 silent drop):
 - 정확성/버그 · 보안 · 성능 · 일관성/중복 · 설정-의도 정합 · 문서-코드 drift
 - **핵심 여정 실행성** — 시드/픽스처가 종단 상태를 직접 세팅해 실제 flow를 우회하는 가짜 green smell(`status=finalized` 주입·점수 직접 적재).
 - **제품 정체성 SSOT 정합** — README·CLAUDE.md 도메인 불변식/제품명과 모순되는 표면(구 브랜드·렌더러·분류 잔재).
