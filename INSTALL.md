@@ -30,7 +30,7 @@
 ls ~/.claude/skills ~/.claude/agents 2>/dev/null | head
 ```
 
-`codebase-audit`·`reviewer` 같은 이름이 이미 보이면 **플러그인을 설치하지 않는다** —
+`goals`·`reviewer` 같은 이름이 이미 보이면 **플러그인을 설치하지 않는다** —
 스킬이 두 벌로 뜨고 같은 훅이 2회 발화한다. 사용자에게 알리고, 갱신을 원하면 아래
 "repo clone 방식"으로 안내한다.
 
@@ -52,8 +52,8 @@ Claude Code 안에서 실행한다(Bash가 아니다):
 /ksi-setup
 ```
 
-이것도 슬래시 커맨드다 — 사용자에게 입력을 요청한다. 이 커맨드가 워크플로·보조 스크립트·
-템플릿을 `~/.claude/`로 배치하고, 의존성을 점검하고, 실제로 도는지 확인하고, 전역 지침이
+이것도 슬래시 커맨드다 — 사용자에게 입력을 요청한다. 이 커맨드가 보조 스크립트를
+`~/.claude/`로 배치하고, 의존성을 점검하고, 실제로 도는지 확인하고, 전역 지침이
 없으면 채운다.
 
 `/ksi-setup`을 쓸 수 없는 상황(커맨드가 아직 로드되지 않음)이라면 아래를 대신 실행한다.
@@ -62,27 +62,15 @@ Claude Code 안에서 실행한다(Bash가 아니다):
 
 ```bash
 test -n "$CLAUDE_PLUGIN_ROOT" || { echo "플러그인 컨텍스트 아님 — 새 세션에서 /ksi-setup"; exit 0; }
-mkdir -p ~/.claude/workflows ~/.claude/scripts ~/.claude/templates
-cp -f "$CLAUDE_PLUGIN_ROOT"/workflows/*.js ~/.claude/workflows/
-for s in ksi-goals.py harness-selfcheck.py load-guard.sh capture.mjs journey.mjs; do
+mkdir -p ~/.claude/scripts
+for s in ksi-goals.py harness-selfcheck.py; do
   cp -f "$CLAUDE_PLUGIN_ROOT/scripts/$s" ~/.claude/scripts/
 done
-for t in visual-qa.yml domain-invariants.example.md; do
-  cp -f "$CLAUDE_PLUGIN_ROOT/templates/$t" ~/.claude/templates/
-done
-if [ -s ~/.claude/CLAUDE.md ]; then
-  echo "전역 지침 이미 있음 — 건드리지 않음"
-else
-  cp "$CLAUDE_PLUGIN_ROOT/templates/CLAUDE.md.example" ~/.claude/CLAUDE.md
-  echo "전역 지침 생성됨"
-fi
 ```
 
-마지막 조건문이 핵심이다 — 기존 `~/.claude/CLAUDE.md`에 **내용이 있으면 아무것도 하지 않는다.**
-덮어쓰고 싶다면 그건 사용자가 결정할 일이니, 템플릿에만 있는 절을 보여주고 먼저 물어본다.
-
-(`cp -n`은 쓰지 않는다 — GNU가 비표준이라 경고하고, 0바이트 파일을 '존재'로 봐서 빈
-`CLAUDE.md`가 영영 안 채워진다.)
+**전역 지침(`~/.claude/CLAUDE.md`)은 이 패키지가 만들지 않는다.** 도구(스킬·에이전트·훅·워크플로)만
+배포하고, "어떻게 일할 것인가"는 각자 쓴다 — 남의 취향을 상시 context에 심는 쪽이 손해가 크다.
+기계로 강제할 것은 훅에, 가끔 실행하는 절차는 스킬에 이미 들어 있다.
 
 ## 4. 검증 — 말이 아니라 실행으로
 
@@ -120,9 +108,6 @@ cd KSI-Claude-Harness
 bash scripts/doctor.sh
 bash scripts/sync-machine.sh        # 모드 자동 감지 (Windows는 git-bash)
 ```
-
-전역 지침은 `templates/CLAUDE.md.example`을 `~/.claude/CLAUDE.md`로 복사하되, **기존 파일이
-있으면 덮어쓰지 말고 사용자에게 확인받는다.**
 
 이 방식을 쓰면 `/plugin install`은 하지 않는다.
 

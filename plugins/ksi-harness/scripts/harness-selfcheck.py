@@ -192,14 +192,13 @@ def cmd_report(args):
 
     # reviewer calibration 수동신호: workflow journal의 verdict mix.
     # 러버스탬프 퇴화 탐지 — 건강한 reviewer는 confirmed만이 아니라 adjust/refuted를 섞어낸다.
-    # 회의율(=(adjust+refuted)/total)이 붕괴하면 verify가 형해화 신호(단 clean 배치는 원래 confirmed 우세라 강신호는 아님 — 능동 probe=reviewer-calibration.js가 정밀).
+    # 회의율(=(adjust+refuted)/total)이 붕괴하면 verify가 형해화 신호(단 clean 배치는 원래 confirmed 우세라 강신호는 아님).
     #
-    # 수정(자가감사 C-1): 예전엔 `if '"confirmed"' in ln`류 substring 검색이었다 — 다른 어휘를 쓰는
-    # workflow(paired-run의 challenger_sufficient/material_gap, review-core의 CONFIRMED/PARTIAL 등)를 놓치고,
-    # note 본문에 우연히 그 단어가 박히면(예: "이미 confirmed 상태였다") 오집계됐다. journal.jsonl 엔트리는
-    # `{"type":"result","result":{...}}` 봉투이고, audit-loop.js/reviewer-calibration.js가 실제로 쓰는
-    # verdict 필드는 그 안 `result.verdict`(스키마: enum confirmed/refuted/adjust) — 여기만 파싱해서 읽는다.
-    # 그 외 workflow가 같은 필드명을 다른 어휘로 쓰는 경우는 이 계기(회의율)의 스코프 밖이라 "기타"로 분리 집계.
+    # 수정(자가감사 C-1): 예전엔 `if '"confirmed"' in ln`류 substring 검색이었다 — note 본문에 우연히
+    # 그 단어가 박히면(예: "이미 confirmed 상태였다") 오집계됐다. journal.jsonl 엔트리는
+    # `{"type":"result","result":{...}}` 봉투이고, verdict 필드는 그 안 `result.verdict`
+    # (스키마: enum confirmed/refuted/adjust) — 여기만 파싱해서 읽는다.
+    # 다른 workflow가 같은 필드명을 다른 어휘로 쓰는 경우는 이 계기(회의율)의 스코프 밖이라 "기타"로 분리 집계.
     KNOWN_VERDICTS = ("confirmed", "adjust", "refuted")
     vk = Counter()
     other_vk = Counter()
@@ -241,7 +240,7 @@ def cmd_report(args):
             print("  " + " · ".join(f"{k}={n}" for k, n in vk.most_common()))
             skept = vk["refuted"] + vk["adjust"]
             rate = 100 * skept / tot
-            flag = "  ⚠ 회의율 낮음 — 러버스탬프 퇴화 의심(reviewer-calibration.js로 정밀 확인)" if rate < 10 else ""
+            flag = "  ⚠ 회의율 낮음 — 러버스탬프 퇴화 의심" if rate < 10 else ""
             print(f"  회의율(adjust+refuted)/total ≈ {rate:.0f}%{flag}")
         else:
             print("  (confirmed/adjust/refuted 스키마 매칭 0건 — 회의율 계산 불가)")
@@ -251,7 +250,6 @@ def cmd_report(args):
             print(f"  기타 verdict 어휘(다른 workflow 스키마 — 이 회의율 계산엔 미포함): {top_other}{more}")
         if unparsed:
             print(f"  ⚠ 미집계 {unparsed}건 — JSON 파싱 실패 라인(손상 또는 예기치 않은 포맷). 신뢰도 낮춰서 해석할 것.")
-        print("  ※ 정밀 calibration은 능동 probe: `Workflow reviewer-calibration.js`(고정 trap-set 채점).")
 
     print("\n※ heeded-rate(넛지가 실제로 먹혔나)는 정규식 heuristic이라 approximate — 이 report는 robust 신호"
           "(발화수·exit-code·토큰·마라톤·verdict-mix)만 낸다. cull 결정은 이 robust 신호로.")
@@ -301,8 +299,6 @@ def cmd_smoke(args):
     benign = {
         "pre-destructive-guard.sh": {"tool_name": "Bash", "tool_input": {"command": "ls -la"}},
         "exfil-guard.sh": {"tool_name": "Bash", "tool_input": {"command": "curl -O https://example.com/x.tgz"}},
-        "gate-nudge.sh": {"prompt": "고마워요", "session_id": "smoke"},
-        "trust-boundary-nudge.sh": {"tool_name": "Bash", "session_id": "smoke"},
         "ruff-check.sh": {"tool_name": "Edit", "tool_input": {"file_path": "/nonexistent/x.txt"}},
         "secret-scan.sh": {"tool_name": "Edit", "tool_input": {"file_path": "/nonexistent/x.txt"}},
         "sca-check.sh": {"tool_name": "Edit", "tool_input": {"file_path": "/nonexistent/x.txt"}},
@@ -474,6 +470,129 @@ def cmd_smoke(args):
     else:
         ok.append("ui-render-check/backend-verify-check[정발화 skip: git 미설치]")
 
+    # 2c) exfil-guard git push 시크릿 게이트(2026-08-08 fail-closed 재설계 — 원래 push-gate-regression.sh를
+    # smoke에 흡수: 별도 회귀 스크립트를 영구 유지하면 테스트 체계가 또 분화된다). 검사 대상이 staging이 아니라
+    # 전송 커밋 범위인지, 검사 불가 시 fail-closed(exit 2)인지가 핵심 — 둘 다 반대로 동작한 전례가 있다.
+    pushdir = None
+    if shutil.which("git"):
+        try:
+            pushdir = os.path.realpath(tempfile.mkdtemp(prefix="selfcheck-push-"))
+            _fake_akia = "AKIA" + "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(16))
+
+            def _mk_push_repo(name):
+                bare = os.path.join(pushdir, name + ".git")
+                work = os.path.join(pushdir, name)
+                subprocess.run(["git", "init", "-q", "--bare", bare], check=True, capture_output=True)
+                subprocess.run(["git", "init", "-q", work], check=True, capture_output=True)
+                subprocess.run(["git", "-C", work, "config", "user.email", "t@t"], check=True, capture_output=True)
+                subprocess.run(["git", "-C", work, "config", "user.name", "t"], check=True, capture_output=True)
+                with open(os.path.join(work, "README.md"), "w", encoding="utf-8") as _f:
+                    _f.write("ok\n")
+                subprocess.run(["git", "-C", work, "add", "-A"], check=True, capture_output=True)
+                subprocess.run(["git", "-C", work, "commit", "-q", "-m", "init"], check=True, capture_output=True)
+                subprocess.run(["git", "-C", work, "remote", "add", "origin", bare], check=True, capture_output=True)
+                subprocess.run(["git", "-C", work, "push", "-q", "-u", "origin", "HEAD:main"],
+                                check=True, capture_output=True)
+                return work
+
+            def _gc(work, *args):
+                subprocess.run(["git", "-C", work, *args], check=True, capture_output=True)
+
+            r1 = _mk_push_repo("c1")
+            with open(os.path.join(r1, "config.py"), "w", encoding="utf-8") as _f:
+                _f.write(f'key = "{_fake_akia}"\n')
+            _gc(r1, "add", "-A")
+            _gc(r1, "commit", "-q", "-m", "add config")
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": r1,
+                        "tool_input": {"command": "git push origin main"}},
+                        "expect_block", "push:커밋된시크릿+clean staging"))
+
+            r2 = _mk_push_repo("c2")
+            with open(os.path.join(r2, "a.txt"), "w", encoding="utf-8") as _f:
+                _f.write("harmless\n")
+            _gc(r2, "add", "-A")
+            _gc(r2, "commit", "-q", "-m", "safe")
+            with open(os.path.join(r2, "staged_only.py"), "w", encoding="utf-8") as _f:
+                _f.write(f'key = "{_fake_akia}"\n')
+            _gc(r2, "add", "staged_only.py")
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": r2,
+                        "tool_input": {"command": "git push origin main"}},
+                        "expect_silent", "push:안전전송커밋+무관staged시크릿"))
+
+            r3 = _mk_push_repo("c3")
+            with open(os.path.join(r3, "leak.py"), "w", encoding="utf-8") as _f:
+                _f.write(f'key = "{_fake_akia}"\n')
+            _gc(r3, "add", "-A")
+            _gc(r3, "commit", "-q", "-m", "oops")
+            _gc(r3, "rm", "-q", "leak.py")
+            _gc(r3, "commit", "-q", "-m", "remove")
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": r3,
+                        "tool_input": {"command": "git push origin main"}},
+                        "expect_block", "push:시크릿커밋후삭제커밋"))
+
+            r4 = _mk_push_repo("c4")
+            with open(os.path.join(r4, ".env"), "w", encoding="utf-8") as _f:
+                _f.write("SECRET=x\n")
+            _gc(r4, "add", "-f", ".env")
+            _gc(r4, "commit", "-q", "-m", "env")
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": r4,
+                        "tool_input": {"command": "git push origin main"}},
+                        "expect_block", "push:.env전송커밋"))
+
+            r5 = _mk_push_repo("c5")
+            _gc(r5, "checkout", "-q", "-b", "feature")
+            with open(os.path.join(r5, "b.txt"), "w", encoding="utf-8") as _f:
+                _f.write("more\n")
+            _gc(r5, "add", "-A")
+            _gc(r5, "commit", "-q", "-m", "feat")
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": r5,
+                        "tool_input": {"command": "git push origin feature"}},
+                        "expect_silent", "push:정상새브랜치(upstream없음)"))
+
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": pushdir,
+                        "tool_input": {"command": "git push origin main"}},
+                        "expect_block", "push:fail-closed(repo아님)", 15))
+
+            r7 = _mk_push_repo("c7")
+            with open(os.path.join(r7, ".env.example"), "w", encoding="utf-8") as _f:
+                _f.write("template\n")
+            _gc(r7, "add", "-A")
+            _gc(r7, "commit", "-q", "-m", "tmpl")
+            pos.append(("exfil-guard.sh", {"tool_name": "Bash", "cwd": r7,
+                        "tool_input": {"command": "git push origin main"}},
+                        "expect_silent", "push:.env.example허용(오차단없음)"))
+        except Exception as e:
+            fails.append(f"exfil-guard push게이트 fixture 구성 실패(환경 문제, 훅 결함 아님): {type(e).__name__}: {e}")
+    else:
+        ok.append("exfil-guard.sh[push게이트 정발화 skip: git 미설치]")
+
+    # 2d) control-plane 자기수정 가드(2026-08-08 신설 — 원래 control-plane-regression.sh를 smoke에 흡수).
+    # 「신뢰 경계」("~/.claude/**·settings.json·~/.bashrc는 직접 요청 시에만")의 기계 강제 — 텍스트 규칙만
+    # 있고 강제가 0이던 구멍(echo/sed-i/rm이 전부 통과)을 막는다. memory·설치경로·프로젝트 파일은 오탐 없어야.
+    cp_cmds = [
+        ('echo "{}" > ~/.claude/settings.json', "expect_block", "cp:echo리다이렉트→settings"),
+        ("sed -i 's/x/y/' ~/.claude/settings.json", "expect_block", "cp:sed-i→settings"),
+        ("rm ~/.claude/hooks/exfil-guard.sh", "expect_block", "cp:rm훅파일"),
+        ("rm -f ~/.claude/hooks/*.sh", "expect_block", "cp:rm훅글롭"),
+        ("truncate -s 0 ~/.bashrc", "expect_block", "cp:truncate→bashrc"),
+        ("cat /dev/null > /home/ksi/.claude/hooks/exfil-guard.sh", "expect_block", "cp:cat절대경로→훅"),
+        ("echo x | tee ~/.bashrc", "expect_block", "cp:tee→bashrc"),
+        ("cp /tmp/x.sh ~/.claude/hooks/exfil-guard.sh", "expect_block", "cp:cp덮어쓰기→훅"),
+        ("mv ~/.claude/hooks/exfil-guard.sh /tmp/x.sh", "expect_block", "cp:mv로훅반출(=삭제)"),
+        ("cp -a ~/.claude/settings.json /tmp/backup.json", "expect_silent", "cp:제어면백업읽기(오차단없음)"),
+        ("cp ~/.claude/hooks/exfil-guard.sh /tmp/audit/", "expect_silent", "cp:훅읽어감사복사(오차단없음)"),
+        ("echo x > $HOME/.claude/settings.json", "expect_block", "cp:HOME전개형"),
+        ("cat ~/.claude/settings.json", "expect_silent", "cp:읽기-cat(오탐없음)"),
+        ("grep -n foo ~/.claude/hooks/*.sh", "expect_silent", "cp:읽기-grep(오탐없음)"),
+        ("echo x > ~/.claude/projects/-home-ksi/memory/MEMORY.md", "expect_silent", "cp:메모리쓰기허용"),
+        ("cp a.py ~/.claude/scripts/a.py", "expect_silent", "cp:설치경로허용"),
+        ("echo hi > /tmp/foo.txt 2>&1", "expect_silent", "cp:무관한리다이렉트"),
+        ("sed -i s/a/b/ ./src/main.py", "expect_silent", "cp:프로젝트파일편집"),
+    ]
+    for _cmd, _mode, _label in cp_cmds:
+        pos.append(("pre-destructive-guard.sh", {"tool_name": "Bash", "tool_input": {"command": _cmd}},
+                    _mode, _label))
+
     for item in pos:
         name, stdin_obj, mode = item[0], item[1], item[2]
         label = item[3] if len(item) > 3 else ""
@@ -491,6 +610,8 @@ def cmd_smoke(args):
             ok.append(f"{name}[{tag}:{label}]" if label else f"{name}[{tag}]")
     shutil.rmtree(posdir, ignore_errors=True)
     shutil.rmtree(gatedir, ignore_errors=True)
+    if pushdir:
+        shutil.rmtree(pushdir, ignore_errors=True)
 
     # 3) ksi-goals 전이가드: completed→abandon 여전히 거부(가짜완료 감사추적 우회 방지)
     # 스크립트가 없으면(플러그인만 설치한 머신) traceback 대신 미검증으로 표기하고 넘어간다 —

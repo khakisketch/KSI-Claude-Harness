@@ -38,13 +38,6 @@ echo
 echo "-- 권장 (없으면 해당 기능이 '조용히' 빠짐)"
 chk 권장 ruff    "lint 훅 — 없으면 .py 저장 시 점검이 silent skip" "pipx install ruff  또는  pip install --user ruff  (PATH에 ~/.local/bin)"
 chk 권장 pip-audit "SCA 훅 — 없으면 requirements/lock 변경 시 의존성 취약점 점검이 '미검증'으로 표기됨" "pipx install pip-audit  또는  pip install --user pip-audit"
-chk 권장 node    "ui-audit 캡처(Playwright 실행 기반) — UI 캡처 안 하는 머신엔 불필요" "$PM nodejs  (또는 nvm)"
-if command -v npx >/dev/null 2>&1 && npx --no-install playwright --version >/dev/null 2>&1; then
-  printf '  ✓ %-9s %s\n' playwright "ui-audit 스크린샷 캡처"
-else
-  printf '  ⚠ %-9s %s\n      → %s\n' playwright "ui-audit 캡처 — UI 캡처하는 머신만 필요(또는 playwright-mcp 대안)" \
-    "프로젝트에서: npm i -D playwright && npx playwright install chromium"
-fi
 echo
 echo "-- 정보 (역할에 따라)"
 chk 정보 gh      "repo publish/PR — 메인테이너만" "$PM gh  (cli.github.com)"
@@ -52,31 +45,21 @@ echo
 # 배치 안내는 설치 형태에 따라 다르다 — 플러그인만 설치한 머신엔 repo의 scripts/가 없어서
 # sync-machine.sh를 안내하면 막다른 길이 된다.
 if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || [ ! -f scripts/sync-machine.sh ]; then
-  FIXHINT="/ksi-setup  (워크플로·스크립트·템플릿을 ~/.claude로 배치)"
+  FIXHINT="/ksi-setup  (보조 스크립트를 ~/.claude로 배치)"
 else
-  FIXHINT="bash scripts/sync-machine.sh --plugin  (스크립트·워크플로·템플릿 재배치)"
+  FIXHINT="bash scripts/sync-machine.sh --plugin  (스크립트 재배치)"
 fi
-echo "-- 워크플로 배치 (감사 스킬이 Workflow로 호출하는 saved workflow)"
-if [ -f "$HOME/.claude/workflows/audit-loop.js" ]; then
-  printf '  ✓ %-9s %s\n' workflows "~/.claude/workflows/ 배치됨 (감사 스킬이 canonical 경로로 호출)"
-else
-  printf '  ⚠ %-9s %s\n      → %s\n' workflows \
-    "~/.claude/workflows/ 미배치 — 감사 스킬이 인터랙티브 fallback으로 강등됨" \
-    "$FIXHINT"
-fi
-if [ -f "$HOME/.claude/scripts/load-guard.sh" ] && [ -f "$HOME/.claude/scripts/capture.mjs" ] \
-   && [ -f "$HOME/.claude/scripts/journey.mjs" ] && [ -f "$HOME/.claude/templates/visual-qa.yml" ] \
-   && [ -f "$HOME/.claude/templates/domain-invariants.example.md" ]; then
-  printf '  ✓ %-9s %s\n' scripts "~/.claude/{scripts,templates} 배치됨 (load-guard·capture·journey·visual-qa·domain-invariants — ui-audit §2/§3-B 라우팅)"
+echo "-- 보조 스크립트 배치 (플러그인 번들이 못 나르는 자산 — goals 스킬이 참조)"
+if [ -f "$HOME/.claude/scripts/ksi-goals.py" ] && [ -f "$HOME/.claude/scripts/harness-selfcheck.py" ]; then
+  printf '  ✓ %-9s %s\n' scripts "~/.claude/scripts/ 배치됨 (ksi-goals.py·harness-selfcheck.py)"
 else
   printf '  ⚠ %-9s %s\n      → %s\n' scripts \
-    "load-guard.sh/capture.mjs/journey.mjs/visual-qa.yml/domain-invariants.example.md 미배치 — ui-audit §2/§3-B 라우팅 미동작(구버전 배치 상태)" \
+    "ksi-goals.py/harness-selfcheck.py 미배치 — goals 스킬·자기측정이 동작하지 않음" \
     "$FIXHINT"
 fi
 echo
 echo "-- 프로젝트별 (하네스 전역 아님 — 각 프로젝트 CLAUDE.md 완료 게이트 소관)"
 echo "  · mypy/pytest(Python) · tsc/typecheck(TS) — 프로젝트 가상환경/devDependencies로."
-echo "-- MCP: 하네스 하드 의존 없음 — playwright-mcp는 ui-audit 캡처의 '옵션' 대안일 뿐."
 echo
 
 if [ "$miss_req" -eq 1 ]; then

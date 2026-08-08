@@ -36,10 +36,10 @@ $G set-kind --id G001 --kind product|hardening|decision [--verification light|st
 
 1. **증거 기록(강도 무관·항상)**: `attempt --evidence`에 구체 산출물(테스트 명령+출력 · 실제 상태전이 trace · 스크린샷 경로 · file:line). "done"·"passes"는 증거가 아니다.
 2. **검증 — 강도별**:
-   - **strict**(위험 표면 자동 승격 + 명시 지정): `attempt` 후 반드시 reviewer(opus·read-only)를 spawn해 등록된 `completion_criteria` 대비 그 증거가 완료를 증명하는지 **반증 시도**(인터랙티브: Task `subagent_type: reviewer` / 워크플로: `agent({agentType:'reviewer'})`). 큰 목표는 `/codebase-audit`·`/ui-audit`로 게이트. **메인이 직접 pass를 찍지 않는다 — reviewer가 깨려다 못 깨야 pass.**
-   - **standard**(제품 목표 기본): 메인이 증거를 직접 대조해 pass 가능. 다만 자기가 구현한 목표를 자기가 통과시키는 자리면 reviewer를 붙인다(`CLAUDE.md` reviewer 호출 기준과 동일).
+   - **strict**(위험 표면 자동 승격 + 명시 지정): `attempt` 후 반드시 reviewer(read-only — 모델·effort는 `agents/reviewer.md` frontmatter가 SSOT)를 spawn해 등록된 `completion_criteria` 대비 그 증거가 완료를 증명하는지 **반증 시도**(인터랙티브: Task `subagent_type: reviewer` / 워크플로: `agent({agentType:'reviewer'})`). **메인이 직접 pass를 찍지 않는다 — reviewer가 깨려다 못 깨야 pass.**
+   - **standard**(제품 목표 기본): 메인이 증거를 직접 대조해 pass 가능. 다만 자기가 구현한 목표를 자기가 통과시키는 자리면 reviewer를 붙인다.
    - **light**(hardening 기본): 증거 기록 + 관련 테스트로 충분. reviewer 불필요.
-3. **판정만 기록**: `gate --verdict pass --evidence-ref <아티팩트경로/transcript id>`(strict는 `--reviewer <검증주체>`도 필수)로 →completed. 픽스처 우회·self-report·green인데 안 작동이면 `gate --verdict refuted --note "..."`(→in_progress 유지, attempt++).
+3. **판정만 기록**: `gate --verdict pass --evidence-ref <아티팩트경로/transcript id>`(strict는 `--reviewer <검증주체>`도 필수)로 →completed. 픽스처 우회·self-report·green인데 안 작동이면 `gate --verdict refuted --note "..."`(→in_progress 유지, attempt++) — **reviewer를 실제로 불렀다면 verdict가 pass든 refuted든 `--reviewer`·`--evidence-ref`를 함께 남긴다**(refuted엔 필수 아님 — 안 남기면 다음 세션이 "누가 언제 봤나"를 note 산문에서 다시 파싱해야 한다).
 4. **DEGRADED**: 게이트 verify가 rate-limit으로 죽으면 pass 금지 — `gate --verdict degraded`(completed 불가·증거 클리어·재검증 강제).
 
 **강제되는 것**: 증거 없는(공백 포함) pass 불가 · `--kind` 없는 register 불가 · 위험 키워드 매칭 시 strict 자동 승격(하향 불가) · strict의 `--reviewer` 필수 · 전이 가드(gate는 in_progress에서만, completed는 invalidate로만 탈출) · refuted/degraded는 증거를 비워 새 attempt 강제 · gate 없이 attempt 3회 초과 반복 시 `ungated_attempts` 경고(비차단 넛지).

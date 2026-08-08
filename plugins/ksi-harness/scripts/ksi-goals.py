@@ -23,7 +23,7 @@ import os
 import re
 import sys
 
-# --- cross-platform 파일락: fcntl은 POSIX 전용이라 Windows Python에서 `import fcntl`이
+# --- cross-platform 파일락(2026-07-18): fcntl은 POSIX 전용이라 Windows Python에서 `import fcntl`이
 #     ModuleNotFoundError로 스크립트 전체를 죽였다(goal-ledger가 Windows에서 통째로 무력). 플랫폼별로 분기하되
 #     동작(load~save 직렬화)은 불변. 어느 것도 없으면 락을 포기하지 말고 best-effort no-op(단일 사용자 dev에선 충분).
 try:
@@ -81,7 +81,7 @@ MARK = {"completed": "✓", "false_positive_complete": "✗재오픈", "abandone
 # 허용 전이(현재상태 → 명령). 이 외엔 거부 — completed는 invalidate로만 빠져나간다(가짜완료 감사추적 우회 차단).
 ALLOWED = {
     # start는 in_progress에서도 허용(idempotent) — goals-run.js가 재시도마다 start를 재호출하는데(refuted 후 목표가
-    # in_progress로 남음) 이를 거부하면 자율 루프가 매 재시도에서 헛발화 에러를 냈다. start는 status만
+    # in_progress로 남음) 이를 거부하면 자율 루프가 매 재시도에서 헛발화 에러를 냈다(2026-07-18). start는 status만
     # in_progress로 (재)설정하고 evidence/attempt를 건드리지 않아 재실행이 무해하다.
     "start": ("proposed", "blocked", "in_progress"),
     "block": ("in_progress",),
@@ -336,7 +336,7 @@ def build_parser():
     # risk 레코드(제품 안전망 — risk lifecycle): goal과 lifecycle이 다르다 —
     # risk는 fix(→goal)뿐 아니라 **accept(baseline로 수용, 근거 필수)**라는 종단이 있다.
     # goals.json 안 risks[]로(같은 lock·save 재사용, 린함). completion 술어를 오염시키지 않게 분리.
-    ra = sub.add_parser("risk-add", help="제품 리스크 기록(open) — codebase-audit 렌즈가 호출")
+    ra = sub.add_parser("risk-add", help="제품 리스크 기록(open)")
     ra.add_argument("--id", required=True)
     ra.add_argument("--title", required=True)
     ra.add_argument("--lens", required=True, choices=["role", "economic", "gaming", "time-axis", "db", "secret", "other"])
@@ -493,7 +493,7 @@ def cmd_state_show(sp, d, as_json, brief):
         if as_json:
             print(json.dumps({"exists": False}))
         elif not brief:
-            print("state.json 없음 — audit이 아직 두뇌를 안 채웠다(codebase-audit §6.5가 state-set 호출).")
+            print("state.json 없음 — 아직 아무도 state-set을 호출하지 않았다.")
         return
     mods = st.get("modules") or {}
     risk = [m for m, v in mods.items() if v.get("status") == "risk"]
@@ -534,7 +534,7 @@ def cmd_status(data, brief, as_json=False, kdir=None):
     nxt = f"{actionable[0]['id']} {actionable[0]['title']}" if actionable else "(없음)"
     if as_json:
         # goals-run.js가 소비: actionable 목록(다음 실행 대상)·counts·정지/완료 술어.
-        # 술어 분리: 예전 `done`=actionable 0은 '전부 blocked'도 done=true라 '완료'로 오해됐다.
+        # 술어 분리(2026-07-18): 예전 `done`=actionable 0은 '전부 blocked'도 done=true라 '완료'로 오해됐다.
         #   - done       : actionable(자율 실행 대상) 0 → 실행 루프의 정지 조건(blocked는 사람 대기라 action 불가).
         #   - all_completed: 모든 목표가 completed(빈 원장은 false) → 진짜 '프로젝트 완료' 술어.
         #   - quiescent  : actionable 0이지만 blocked가 남음 → 멈췄으나 미완(사람 개입 대기).
@@ -656,7 +656,7 @@ def cmd_report(data, brief, show_ids):
         print(f"{data['project']} 현황: " + (" · ".join(parts) if parts else "기록 없음"))
         return
 
-    # 완료분은 개수 + 최근 것 몇 개만. 실측(한 프로젝트): completed product가 95개라 전량 나열하면
+    # 완료분은 개수 + 최근 것 몇 개만. 실측(Pro-Bid): completed product가 95개라 전량 나열하면
     # '현황'이 아니라 변경 이력이 된다 — 사용자가 알고 싶은 건 "이미 된 것 목록"이 아니라
     # "다음에 뭘 하나"다. 전량은 --ids로 id를 얻어 status/원장에서 본다.
     USABLE_SHOWN = 5

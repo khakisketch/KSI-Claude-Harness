@@ -176,8 +176,6 @@ for m in "" strict warn off; do
     *) failt "스위치제거 ui-render(KSI_HOOKS=${m:-unset}) — 침묵(옛 스위치가 아직 살아있다)" ;;
   esac
 done
-out="$(printf '{"prompt":"새 기능 만들어줘 대시보드 화면","session_id":"eg-off-'"$$"'"}' | KSI_HOOKS=off bash "$HOOKS/gate-nudge.sh")"
-case "$out" in *additionalContext*) pass "스위치제거 gate-nudge — off 값이어도 발화" ;; *) failt "스위치제거 gate-nudge — off에서 여전히 침묵" ;; esac
 [ -e "$HOOKS/ksi-mode.sh" ] && failt "ksi-mode.sh 가 남아있다(스위치 잔재)" || pass "ksi-mode.sh 제거됨"
 
 echo "== 안전벨트: 되돌리기-불가는 환경과 무관하게 항상 차단 =="
@@ -226,13 +224,6 @@ echo "== dead-config: bypassPermissions 단독은 더는 발화 안 함 =="
 mkdir -p "$T/dcg-bypass/.claude"
 printf '{"permissions":{"defaultMode":"bypassPermissions"}}' > "$T/dcg-bypass/.claude/settings.json"
 out="$(dcg "$TW/dcg-bypass")"; [ -z "$out" ] && pass "dead-config — bypassPermissions 단독 → silent(사용자 선호 존중)" || failt "dead-config — bypass 단독인데 발화"
-
-echo "== gate-nudge slim: 한정어 없는 소작업 미발화 =="
-gn() { printf '{"prompt":"%s","session_id":"%s"}' "$1" "$2" | bash "$HOOKS/gate-nudge.sh"; }
-out="$(gn "정렬 기능 추가해줘" "gn1-$$")"; [ -z "$out" ] && pass "gate-nudge — 정렬 기능 추가(소작업) → 미발화(slim)" || failt "gate-nudge — 소작업 오발"
-out="$(gn "로깅 기능 넣어줘" "gn2-$$")"; [ -z "$out" ] && pass "gate-nudge — 로깅 기능 넣어줘 → 미발화" || failt "gate-nudge — 소작업 오발2"
-case "$(gn "새 기능 만들어줘 대시보드 화면" "gn3-$$")" in *additionalContext*) pass "gate-nudge — 새 기능 만들어줘 → 여전히 발화" ;; *) failt "gate-nudge — 진짜 kickoff 미발화(과협소)" ;; esac
-case "$(gn "대형 리팩터 하자" "gn4-$$")" in *additionalContext*) pass "gate-nudge — 대형 리팩터 → 여전히 발화" ;; *) failt "gate-nudge — 대형 리팩터 미발화" ;; esac
 
 echo "== goal-status slim: Path B(docs 넛지) 제거 확인 =="
 gsb() { printf '{"cwd":"%s"}' "$1" | CLAUDE_PLUGIN_ROOT="$PR" bash "$HOOKS/goal-status.sh"; }

@@ -12,7 +12,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/exfil-guard.sh",
-            "timeout": 10
+            "timeout": 30
           }
         ]
       }
@@ -39,16 +39,6 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/ui-checkpoint-nudge.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "WebFetch|WebSearch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/trust-boundary-nudge.sh",
             "timeout": 10
           }
         ]
@@ -87,17 +77,6 @@
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/backend-verify-check.sh",
             "timeout": 30
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/gate-nudge.sh",
-            "timeout": 10
           }
         ]
       }

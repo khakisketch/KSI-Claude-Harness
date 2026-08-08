@@ -47,7 +47,7 @@ EXTS = (".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss")
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit"}
 changed = set()
 
-# 효율: 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 실행 — 미커밋 EXTS 파일이 하나도 없으면
+# 효율(0.8.3): 값싼 git 게이트를 비싼 transcript/사이드카 파싱보다 먼저 실행 — 미커밋 EXTS 파일이 하나도 없으면
 # transcript 전체 파싱을 통째로 건너뛴다(관련 미커밋 0인 흔한 Stop에서 O(transcript) 비용 제거). git 불가면 종전대로 진행(graceful).
 import subprocess
 
@@ -210,7 +210,7 @@ if n == 0:
 import hashlib, glob as _glob, tempfile
 sid = d.get("session_id", "") or "nosession"
 fs_hash = hashlib.sha1("\n".join(sorted(changed)).encode()).hexdigest()[:8]
-# Windows 이식성(실측): os.getuid()는 POSIX 전용이라 Windows Python이면 이 지점에서
+# Windows 이식성(2026-07-18 실측): os.getuid()는 POSIX 전용이라 Windows Python이면 이 지점에서
 # AttributeError로 훅 전체가 죽어 영영 침묵했다(stderr는 2>/dev/null에 은폐 — 발화 직전 크래시).
 # /tmp 하드코딩도 Windows Python에선 C:\tmp로 풀린다. gettempdir()(POSIX=TMPDIR//tmp·Win=%TEMP%)
 # + getuid 폴백으로 교체 — POSIX 동작은 불변.
@@ -228,7 +228,7 @@ except Exception:
 
 msg = (
     "화면 파일 " + str(n) + "개 수정됨 — 렌더를 아직 안 봤다면 확인해 볼 시점입니다"
-    "(레이아웃 변경이면 390·768·1440, 모달·팝오버는 연 상태로, 빈 DB로 한 번). 전 페이지면 /ui-audit."
+    "(레이아웃 변경이면 390·768·1440, 모달·팝오버는 연 상태로, 빈 DB로 한 번)."
 )
 print(json.dumps({"systemMessage": msg}, ensure_ascii=False))
 sys.exit(0)

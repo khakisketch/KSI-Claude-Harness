@@ -1,7 +1,7 @@
 {
   "name": "ksi-harness",
-  "description": "ultracode-first 멀티에이전트 워크플로 하네스 — 4 스킬(codebase-audit·ui-audit·review-core·goals) + 에이전트(Explore=Haiku read-only 탐색·reviewer=Opus read-only 사후검증, 구현·설계판단은 메인 직접) + 검증 게이트 훅(파괴적 명령·git push 시크릿 하드가드부터 dead-config·착수 게이트·verify 알림까지 — 개수와 전체 목록은 README가 SSOT) + 세션 시작 업데이트 알림. goals=durable goal-ledger(목표를 제품/보완/결정으로 분류해 `report`로 사람용 현황을 내고, 완료는 증거 게이트로만 인정 — 위험 표면은 강도가 자동 승격되고 하향 불가, 인터랙티브 진행). nextgen: 자기측정(harness-selfcheck.py)·durable state(프로젝트 두뇌). 모델 티어링·adversarial 검증·검증 게이트가 스킬/에이전트에 baked-in. main-agnostic(Fable/Opus 어느 메인이든 동작). 착수 전 모호성 좁히기·디버깅 루프·배포 리스크 점검은 superpowers 등 외부 플러그인과 병행 사용을 전제로 한다.",
-  "version": "0.9.43",
+  "description": "Main이 기본 Claude Code 동작으로 개발하게 하고, 하네스는 꼭 필요한 역할·안전장치만 얹는 최소 하네스 — 1 스킬(goals) + 에이전트(Explore=Haiku read-only 조사·실행, reviewer=독립 검토자·자주 호출하는 기본 경로 아님, 모델·effort는 각 frontmatter가 SSOT) + 검증 게이트 훅(파괴적 명령·git push 시크릿 하드가드·lint·시크릿 스캔·SCA·렌더/백엔드 확인 알림 — 개수와 전체 목록은 README가 SSOT) + 세션 시작 업데이트 알림. goals=durable goal-ledger(목표를 제품/보완/결정으로 분류해 `report`로 사람용 현황을 내고, 완료는 증거 게이트로만 인정). 메인의 model·effort는 하네스가 정하지 않는다 — 세션 기본값과 사용자 선택을 그대로 따른다. main-agnostic(어느 메인이든 동작). 착수 전 모호성 좁히기·디버깅 루프·설계 판단은 하네스가 대신하지 않고 사용자가 `/plan`으로 직접 올린다.",
+  "version": "0.9.44",
   "author": {
     "name": "KSI"
   }

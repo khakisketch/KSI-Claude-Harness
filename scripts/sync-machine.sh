@@ -40,25 +40,14 @@ case "$MODE" in
     else
       echo "⚠ claude CLI가 PATH에 없음 — Claude Code 안에서 /plugin으로 갱신"
     fi
-    echo "== 2.5) 워크플로·스크립트 배치 (플러그인 번들이 못 나르는 자산을 ~/.claude에 배치) =="
-    # 플러그인 번들은 skills/agents/hooks만 자동설치하고, saved workflow(.js)·ksi-goals.py는
-    # 나르지 않는다(공식 미지원 — plugins.md 구조 규약에 workflows/ 없음. ${CLAUDE_PLUGIN_ROOT}도
-    # 스킬 prose에선 확장 안 됨). 스킬 본문이 참조하는 ~/.claude/{workflows,scripts} 경로를 여기서
-    # 명시적으로 채워 native와 같은 경로로 수렴시킨다(이게 없으면 감사 스킬이 조용히 인터랙티브로 강등).
-    mkdir -p "$HOME/.claude/workflows" "$HOME/.claude/scripts"
-    if cp -f templates/workflows/*.js "$HOME/.claude/workflows/" 2>/dev/null; then
-      echo "   ✓ templates/workflows/*.js → ~/.claude/workflows/ ($(ls templates/workflows/*.js 2>/dev/null | wc -l)개)"
-    else
-      echo "   ⚠ workflows 복사 실패 — templates/workflows/ 확인"
-    fi
-    for s in ksi-goals.py harness-selfcheck.py load-guard.sh capture.mjs journey.mjs; do
+    echo "== 2.5) 스크립트 배치 (플러그인 번들이 못 나르는 자산을 ~/.claude에 배치) =="
+    # 플러그인 번들은 skills/agents/hooks만 자동설치하고, ksi-goals.py·harness-selfcheck.py는
+    # 나르지 않는다(공식 미지원 — ${CLAUDE_PLUGIN_ROOT}도 스킬 prose에선 확장 안 됨). 스킬 본문이
+    # 참조하는 ~/.claude/scripts 경로를 여기서 명시적으로 채워 native와 같은 경로로 수렴시킨다.
+    mkdir -p "$HOME/.claude/scripts"
+    for s in ksi-goals.py harness-selfcheck.py; do
       cp -f "plugins/ksi-harness/scripts/$s" "$HOME/.claude/scripts/" 2>/dev/null \
         && echo "   ✓ $s → ~/.claude/scripts/" || echo "   ⚠ $s 복사 실패"
-    done
-    mkdir -p "$HOME/.claude/templates"
-    for t in visual-qa.yml domain-invariants.example.md; do
-      cp -f "templates/$t" "$HOME/.claude/templates/" 2>/dev/null \
-        && echo "   ✓ $t → ~/.claude/templates/" || echo "   ⚠ $t 복사 실패"
     done
     echo "== 3) 훅 행동 회귀 (dist 스크립트, 이 머신의 bash/python3 이식성 검증) =="
     bash scripts/test-hooks.sh || exit 1
