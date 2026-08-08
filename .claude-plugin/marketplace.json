@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ksi-tools",
-  "description": "ultracode-first 멀티에이전트 워크플로 하네스 — ksi-harness 플러그인 마켓플레이스 (모델 티어링·adversarial 검증·검증 게이트 baked-in)",
+  "description": "Main이 기본 Claude Code 동작으로 개발하게 하는 최소 하네스 — ksi-harness 플러그인 마켓플레이스 (필요한 역할·안전장치만)",
   "owner": {
     "name": "KSI"
   },
@@ -9,8 +9,8 @@
     {
       "name": "ksi-harness",
       "source": "./plugins/ksi-harness",
-      "description": "ultracode-first 멀티에이전트 워크플로 하네스 (스킬·tier 에이전트·검증 게이트 훅·goal-ledger·업데이트 알림). doctrine 템플릿·권장 설정은 repo의 templates/ 참조.",
-      "version": "0.9.43"
+      "description": "최소 하네스 (goals 스킬·tier 에이전트 2개·검증 게이트 훅·업데이트 알림). doctrine 템플릿·권장 설정은 repo의 templates/ 참조.",
+      "version": "0.9.44"
     }
   ]
 }
