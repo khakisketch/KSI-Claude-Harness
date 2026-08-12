@@ -7,7 +7,7 @@
 AI가 "다 했어요"라고 할 때 정말 된 건지, 위험한 명령은 안 치는지.
 사람이 매번 지켜보지 않아도 되게 만드는 플러그인입니다.
 
-[![version](https://img.shields.io/badge/version-0.9.44-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
+[![version](https://img.shields.io/badge/version-0.9.45-2563eb?style=flat-square)](https://github.com/khakisketch/KSI-Claude-Harness/releases)
 [![license](https://img.shields.io/badge/license-MIT-16a34a?style=flat-square)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-8b5cf6?style=flat-square)](https://code.claude.com/docs)
 
@@ -82,9 +82,9 @@ Claude가 [INSTALL.md](INSTALL.md)의 절차를 따라 설치하고, 마지막�
 /ksi-setup
 ```
 
-`/ksi-setup`이 나머지를 마무리합니다 — 감사·목표 워크플로를 `~/.claude/workflows/`에 배치하고,
-의존성(git·python3 필수 / ruff·Playwright 권장)을 점검하고, 실제로 도는지 확인합니다.
-플러그인 번들이 `.js` 워크플로를 나르지 못해서 이 한 단계가 필요합니다.
+`/ksi-setup`이 나머지를 마무리합니다 — 보조 스크립트를 `~/.claude/scripts/`에 배치하고,
+의존성(git·python3 필수 / ruff·pip-audit 권장)을 점검하고, 실제로 도는지 확인합니다.
+플러그인 번들이 스킬·에이전트·훅만 나르기 때문에 이 한 단계가 필요합니다.
 
 </details>
 
@@ -240,8 +240,8 @@ JSON을 직접 손대지 마세요(분류를 고칠 땐 `set-kind`). 되돌릴 �
 <td align="center">
 <img src="assets/characters/explore.png" width="190" alt="Explore — 파란 안전모를 쓴 신입 조사원"><br/>
 <b><code>Explore</code></b> · 🔵 파란 안전모 · 신입 조사원<br/>
-<code>Haiku</code> · <code>low</code> · <i>소스 미변경</i><br/>
-<sub>먼저 들어가 둘러보고(<b>inspect</b>),<br/>줄자를 대본다(<b>run</b> — lint·test·build).<br/>파일 덤프도 로그 전문도 아니라 <b>결과만</b>.</sub>
+<code>Haiku</code> · <i>소스 미변경</i><br/>
+<sub>먼저 들어가 둘러보고(<b>inspect</b>),<br/>줄자를 대본다(<b>run</b> — lint·test·build).<br/>파일 덤프도 로그 전문도 아니라 <b>결과만</b>.<br/>테스트 실패는 갈래를 붙여 돌려준다.</sub>
 </td>
 </tr>
 </table>

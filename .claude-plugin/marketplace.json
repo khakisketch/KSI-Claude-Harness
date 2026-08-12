@@ -10,7 +10,7 @@
       "name": "ksi-harness",
       "source": "./plugins/ksi-harness",
       "description": "최소 하네스 (goals 스킬·tier 에이전트 2개·검증 게이트 훅·업데이트 알림). doctrine 템플릿·권장 설정은 repo의 templates/ 참조.",
-      "version": "0.9.44"
+      "version": "0.9.45"
     }
   ]
 }
